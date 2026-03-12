@@ -1,0 +1,752 @@
+[
+  {
+    "id": 1,
+    "name": "Bien-être",
+    "subcategories": [
+      {
+        "id": 1,
+        "name": "Huile essentielle",
+        "category": {
+          "id": 1,
+          "name": "Bien-être"
+        }
+      },
+      {
+        "id": 2,
+        "name": "Massage",
+        "category": {
+          "id": 1,
+          "name": "Bien-être"
+        }
+      },
+      {
+        "id": 3,
+        "name": "Sommeil et produit de relaxation",
+        "category": {
+          "id": 1,
+          "name": "Bien-être"
+        }
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Coiffure",
+    "subcategories": [
+      {
+        "id": 4,
+        "name": "Accessoire pour cheveu",
+        "category": {
+          "id": 2,
+          "name": "Coiffure"
+        }
+      },
+      {
+        "id": 5,
+        "name": "Produits coiffants",
+        "category": {
+          "id": 2,
+          "name": "Coiffure"
+        }
+      },
+      {
+        "id": 6,
+        "name": "Shampoing",
+        "category": {
+          "id": 2,
+          "name": "Coiffure"
+        }
+      },
+      {
+        "id": 7,
+        "name": "Soin capillaire",
+        "category": {
+          "id": 2,
+          "name": "Coiffure"
+        }
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Diététique",
+    "subcategories": [
+      {
+        "id": 8,
+        "name": "Endurance et tonus",
+        "category": {
+          "id": 3,
+          "name": "Diététique"
+        }
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Hygiène dentaire",
+    "subcategories": [
+      {
+        "id": 9,
+        "name": "Anti-taches et blanchiment dentaire",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 10,
+        "name": "Bain de bouche",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 11,
+        "name": "Crème pour appareil dentaire",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 12,
+        "name": "Dentifrice adulte",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 13,
+        "name": "Dentifrice en poudre",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 14,
+        "name": "Dentifrice enfant",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 15,
+        "name": "Dentifrice solide",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 16,
+        "name": "Dentifrice à croquer",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 17,
+        "name": "Fil dentaire",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      },
+      {
+        "id": 18,
+        "name": "Haleine",
+        "category": {
+          "id": 4,
+          "name": "Hygiène dentaire"
+        }
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "Hygiène du corps",
+    "subcategories": [
+      {
+        "id": 19,
+        "name": "Déodorant",
+        "category": {
+          "id": 5,
+          "name": "Hygiène du corps"
+        }
+      },
+      {
+        "id": 20,
+        "name": "Hygiène intime",
+        "category": {
+          "id": 5,
+          "name": "Hygiène du corps"
+        }
+      },
+      {
+        "id": 21,
+        "name": "Papier Toilette Humide",
+        "category": {
+          "id": 5,
+          "name": "Hygiène du corps"
+        }
+      },
+      {
+        "id": 22,
+        "name": "Produit de bain",
+        "category": {
+          "id": 5,
+          "name": "Hygiène du corps"
+        }
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Manucure et pédicure",
+    "subcategories": [
+      {
+        "id": 23,
+        "name": "Coffret lampe LED et vernis",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 24,
+        "name": "Dissolvant",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 25,
+        "name": "Nail art, faux ongles et accessoires",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 26,
+        "name": "Soin et traitement des ongles",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 27,
+        "name": "Soins pour cuticules",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 28,
+        "name": "Stylo correcteur de vernis",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 29,
+        "name": "Sèche vernis",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      },
+      {
+        "id": 30,
+        "name": "Vernis et base Ongles",
+        "category": {
+          "id": 6,
+          "name": "Manucure et pédicure"
+        }
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "Maquillage",
+    "subcategories": [
+      {
+        "id": 31,
+        "name": "Accessoires de maquillage",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      },
+      {
+        "id": 32,
+        "name": "Démaquillant",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      },
+      {
+        "id": 33,
+        "name": "Fond de teint et poudre",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      },
+      {
+        "id": 34,
+        "name": "Maquillage des yeux",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      },
+      {
+        "id": 35,
+        "name": "Maquillage à lèvres",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      },
+      {
+        "id": 36,
+        "name": "Palette de maquillage",
+        "category": {
+          "id": 7,
+          "name": "Maquillage"
+        }
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Parfum",
+    "subcategories": [
+      {
+        "id": 37,
+        "name": "Parfum mixte",
+        "category": {
+          "id": 8,
+          "name": "Parfum"
+        }
+      },
+      {
+        "id": 38,
+        "name": "Parfum pour bébé",
+        "category": {
+          "id": 8,
+          "name": "Parfum"
+        }
+      },
+      {
+        "id": 39,
+        "name": "Parfum pour enfant",
+        "category": {
+          "id": 8,
+          "name": "Parfum"
+        }
+      },
+      {
+        "id": 40,
+        "name": "Parfum pour femme",
+        "category": {
+          "id": 8,
+          "name": "Parfum"
+        }
+      },
+      {
+        "id": 41,
+        "name": "Parfum pour homme",
+        "category": {
+          "id": 8,
+          "name": "Parfum"
+        }
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "Produit solaire",
+    "subcategories": [
+      {
+        "id": 42,
+        "name": "Après soleil",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 43,
+        "name": "Autobronzant",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 44,
+        "name": "Baume à lèvres solaire",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 45,
+        "name": "Crème solaire",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 46,
+        "name": "Graisse à traire",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 47,
+        "name": "Huile de bronzage",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      },
+      {
+        "id": 48,
+        "name": "Préparateur bronzage",
+        "category": {
+          "id": 9,
+          "name": "Produit solaire"
+        }
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Rasage et épilation",
+    "subcategories": [
+      {
+        "id": 49,
+        "name": "Après-rasage",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 50,
+        "name": "Epilation et cire",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 51,
+        "name": "Huile de rasage",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 52,
+        "name": "Lames de rasoir",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 53,
+        "name": "Mousse et gel de rasage",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 54,
+        "name": "Rasoir femme",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 55,
+        "name": "Rasoir homme",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 56,
+        "name": "Rasoir jetable",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      },
+      {
+        "id": 57,
+        "name": "Soin de la barbe",
+        "category": {
+          "id": 10,
+          "name": "Rasage et épilation"
+        }
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "Santé",
+    "subcategories": [
+      {
+        "id": 58,
+        "name": "Parapharmacie",
+        "category": {
+          "id": 11,
+          "name": "Santé"
+        }
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Soin du corps et visage",
+    "subcategories": [
+      {
+        "id": 59,
+        "name": "Argile et Ghassoul",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 60,
+        "name": "Calendrier de l'avent",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 61,
+        "name": "Crème hydratante",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 62,
+        "name": "DIY - À faire soi-même",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 63,
+        "name": "Eaux Thermales / Brumes",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 64,
+        "name": "Masque et gommage",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 65,
+        "name": "Nettoyant visage",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 66,
+        "name": "Regime et Minceur",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 67,
+        "name": "Soin acne et imperfection",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 68,
+        "name": "Soin anti-cellulite",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 69,
+        "name": "Soin anti-rougeurs",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 70,
+        "name": "Soin anti-vergetures",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 71,
+        "name": "Soin anti-âge",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 72,
+        "name": "Soin corps et visage",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 73,
+        "name": "Soin des lèvres",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 74,
+        "name": "Soin des mains",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 75,
+        "name": "Soin des pieds et jambes",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 76,
+        "name": "Soin des yeux",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 77,
+        "name": "Soin du buste",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 78,
+        "name": "Soin intime",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 79,
+        "name": "Soin pour homme",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      },
+      {
+        "id": 80,
+        "name": "Soin éclaircissant et anti-taches",
+        "category": {
+          "id": 12,
+          "name": "Soin du corps et visage"
+        }
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Soin et hygiène bébé",
+    "subcategories": [
+      {
+        "id": 81,
+        "name": "Lingette bébé",
+        "category": {
+          "id": 13,
+          "name": "Soin et hygiène bébé"
+        }
+      },
+      {
+        "id": 82,
+        "name": "Shampooing et savon bébé",
+        "category": {
+          "id": 13,
+          "name": "Soin et hygiène bébé"
+        }
+      },
+      {
+        "id": 83,
+        "name": "Soin bébé",
+        "category": {
+          "id": 13,
+          "name": "Soin et hygiène bébé"
+        }
+      },
+      {
+        "id": 84,
+        "name": "Soin de grossesse",
+        "category": {
+          "id": 13,
+          "name": "Soin et hygiène bébé"
+        }
+      }
+    ]
+  }
+]
