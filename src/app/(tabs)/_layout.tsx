@@ -110,6 +110,7 @@ export default function TabsLayout() {
 
       {/* HIDDEN ROUTES (inside tabs, but not shown as buttons) */}
       <Tabs.Screen name="(main)/category/[id]" options={{ href: null }} />
+      <Tabs.Screen name="(main)/banner/[id]" options={{ href: null }} />
       <Tabs.Screen name="(main)/product/[ean]" options={{ href: null }} />
       <Tabs.Screen name="(main)/profile/edit" options={{ href: null }} />
       <Tabs.Screen name="(main)/manual-search" options={{ href: null }} />

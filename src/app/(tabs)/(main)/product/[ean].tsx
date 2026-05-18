@@ -12,6 +12,10 @@ import { useAuth } from "../../../../components/AuthProvider";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import ProductDetailLoader from "../../../../components/ProductDetailLoader";
 import NoProduct from "../../../../../assets/noProduct.svg";
+import RedScore from "../../../../../assets/score/red.svg";
+import BrownScore from "../../../../../assets/score/brown.svg";
+import YellowScore from "../../../../../assets/score/yellow.svg";
+import GreenScore from "../../../../../assets/score/green.svg";
 function StarRow({ score20 }: { score20: number }) {
   const stars = starsFrom20(score20);
   return (
@@ -25,7 +29,12 @@ function StarRow({ score20 }: { score20: number }) {
     </View>
   );
 }
-
+function ScoreIcon({ score }: { score: number }) {
+  if (score <= 5) return <RedScore width={34} height={34} />;
+  if (score <= 10) return <BrownScore width={34} height={34} />;
+  if (score <= 15) return <YellowScore width={34} height={34} />;
+  return <GreenScore width={34} height={34} />;
+}
 function Chip({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "accent" }) {
   return (
     <View style={[styles.chip, tone === "accent" ? styles.chipAccent : styles.chipNeutral]}>
@@ -160,14 +169,8 @@ export default function ProductDetailsScreen() {
           {product.ean ? `EAN ${product.ean}` : ""}
         </Text>
 
-        <View style={styles.scoreRow}>
-          <View style={styles.dot} />
-          <Text style={styles.scoreText}>
-            <Text style={styles.scoreStrong}>{product.validScore}</Text>/20 <Text style={styles.muted}>points</Text>
-          </Text>
+<ScoreIcon score={score20} />
 
-          <StarRow score20={score20} />
-        </View>
       </View>
 
       {/* Ingredients */}
