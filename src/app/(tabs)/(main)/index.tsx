@@ -118,7 +118,7 @@ export default function HomeScreen() {
           >
             {/* <Text style={styles.bannerTitle}>{item.title}</Text> */}
             <RenderHtml
-              contentWidth={width - 32}
+              contentWidth={width -32}
               source={{ html: item.shortDescription || "" }}
               baseStyle={{
                 color: "#FFFFFF",
