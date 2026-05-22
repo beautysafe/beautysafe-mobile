@@ -91,69 +91,72 @@ export default function HomeScreen() {
   const { data: bannersData = [] } = useBanners();
   const banners = Array.isArray(bannersData) ? bannersData : [];
 
-       const renderBannerCard = ({ item }: { item: Banner }) => {
-  return (
-    <Pressable
-      style={styles.bannerSlide}
-      onPress={() =>
-        router.push({
-          pathname: "/banner/[id]",
-          params: { id: String(item.id) },
-        })
-      }
-    >
-      <View style={styles.bannerBackground}>
-        <Image
-          source={require("../../../../assets/img/winter.png")}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-        />
+  const renderBannerCard = ({ item }: { item: Banner }) => {
+    const bannerImageSource = item.image
+      ? { uri: item.image }
+      : require("../../../../assets/img/winter.png");
+    return (
+      <Pressable
+        style={styles.bannerSlide}
+        onPress={() =>
+          router.push({
+            pathname: "/banner/[id]",
+            params: { id: String(item.id) },
+          })
+        }
+      >
+        <View style={styles.bannerBackground}>
+          <Image
+            source={bannerImageSource}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+          />
 
-        <LinearGradient
-          colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.45)"]}
-          style={styles.bannerOverlay}
-        >
-          {/* <Text style={styles.bannerTitle}>{item.title}</Text> */}
-          <RenderHtml
-  contentWidth={width - 32}
-  source={{ html: item.shortDescription || "" }}
-  baseStyle={{
-    color: "#FFFFFF",
-    textAlign: "center",
-  }}
-  tagsStyles={{
-    p: {
-      color: "#FFFFFF",
-      textAlign: "center",
-      fontSize: 14,
-      lineHeight: 20,
-      margin: 0,
-    },
-    h1: {
-      color: "#FFFFFF",
-      textAlign: "center",
-      fontSize: 18,
-      fontWeight: "800",
-      margin: 0,
-    },
-    h2: {
-      color: "#FFFFFF",
-      textAlign: "center",
-      fontSize: 16,
-      fontWeight: "800",
-      margin: 0,
-    },
-    strong: {
-      color: "#FFFFFF",
-      fontWeight: "800",
-    },
-  }}
-/>
-        </LinearGradient>
-      </View>
-    </Pressable>
-  );
-};
+          <LinearGradient
+            colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.45)"]}
+            style={styles.bannerOverlay}
+          >
+            {/* <Text style={styles.bannerTitle}>{item.title}</Text> */}
+            <RenderHtml
+              contentWidth={width - 32}
+              source={{ html: item.shortDescription || "" }}
+              baseStyle={{
+                color: "#FFFFFF",
+                textAlign: "center",
+              }}
+              tagsStyles={{
+                p: {
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                  fontSize: 14,
+                  lineHeight: 20,
+                  margin: 0,
+                },
+                h1: {
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                  fontSize: 18,
+                  fontWeight: "800",
+                  margin: 0,
+                },
+                h2: {
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                  fontSize: 16,
+                  fontWeight: "800",
+                  margin: 0,
+                },
+                strong: {
+                  color: "#FFFFFF",
+                  fontWeight: "800",
+                },
+              }}
+            />
+          </LinearGradient>
+        </View>
+      </Pressable>
+    );
+  };
   const inputRef = useRef<TextInput>(null);
   const router = useRouter();
   const meName = user?.fullName?.split(" ")[0] || "User";
@@ -828,13 +831,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
 
- bannerBackground: {
-  flex: 1,
-  borderRadius: 22,
-  overflow: "hidden",
-  backgroundColor: "#ddd",
-},
-
+  bannerBackground: {
+    flex: 1,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "#ddd",
+  },
 
   bannerImage: {
     borderRadius: 22,

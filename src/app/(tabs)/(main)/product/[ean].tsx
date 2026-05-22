@@ -1,13 +1,21 @@
 import React, { useEffect, useMemo } from "react";
-import {View, Text, ActivityIndicator, ScrollView, StyleSheet, Pressable, Modal} from "react-native";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Modal,
+} from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Image } from "expo-image";
 import { useProductByEan } from "../../../../hooks/useProduct";
 import type { Product } from "../../../../types/product";
 import { scoreOn20, starsFrom20 } from "../../../../utils/score";
-import HeartIcon from  "../../../../../assets/icons/heart.svg"
-import HeartRedIcon from  "../../../../../assets/icons/heart-red.svg"
-import ArrowLeftIcon from  "../../../../../assets/icons/arrow-left.svg"
+import HeartIcon from "../../../../../assets/icons/heart.svg";
+import HeartRedIcon from "../../../../../assets/icons/heart-red.svg";
+import ArrowLeftIcon from "../../../../../assets/icons/arrow-left.svg";
 import { useAuth } from "../../../../components/AuthProvider";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import ProductDetailLoader from "../../../../components/ProductDetailLoader";
@@ -21,7 +29,10 @@ function StarRow({ score20 }: { score20: number }) {
   return (
     <View style={styles.starRow}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <Text key={i} style={[styles.star, i < stars ? styles.starOn : styles.starOff]}>
+        <Text
+          key={i}
+          style={[styles.star, i < stars ? styles.starOn : styles.starOff]}
+        >
           ★
         </Text>
       ))}
@@ -31,13 +42,24 @@ function StarRow({ score20 }: { score20: number }) {
 }
 function ScoreIcon({ score }: { score: number }) {
   if (score <= 5) return <RedScore width={34} height={34} />;
-  if (score <= 10) return <BrownScore width={34} height={34} />;
-  if (score <= 15) return <YellowScore width={34} height={34} />;
-  return <GreenScore width={34} height={34} />;
+  if (score > 5 && score <= 10) return <BrownScore width={34} height={34} />;
+  if (score > 10 && score <= 15) return <YellowScore width={34} height={34} />;
+  if (score > 15) return <GreenScore width={34} height={34} />;
 }
-function Chip({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "accent" }) {
+function Chip({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "accent";
+}) {
   return (
-    <View style={[styles.chip, tone === "accent" ? styles.chipAccent : styles.chipNeutral]}>
+    <View
+      style={[
+        styles.chip,
+        tone === "accent" ? styles.chipAccent : styles.chipNeutral,
+      ]}
+    >
       <Text style={styles.chipText}>{label}</Text>
     </View>
   );
@@ -55,7 +77,7 @@ export default function ProductDetailsScreen() {
     toggleFavorite,
     isMutating: favLoading,
   } = useFavorites(!!token);
-  
+
   const isFav = isFavorite(productUid);
   useEffect(() => {
     if (eanStr) refetch();
@@ -68,15 +90,18 @@ export default function ProductDetailsScreen() {
     }
     if (typeof productUid === "number") {
       await toggleFavorite(productUid);
-    }  }
+    }
+  };
   const product = data as Product | undefined;
 
   const heroImage =
-  product?.images?.[0]?.image ||
-  product?.images?.[0]?.thumbnail ||
-  (typeof (product as any)?.image === "string" ? (product as any).image : undefined);  
-  const score20 = scoreOn20(product?.validScore);
-  const [showAllIngredients, setShowAllIngredients] = React.useState(false);
+    product?.images?.[0]?.image ||
+    product?.images?.[0]?.thumbnail ||
+    (typeof (product as any)?.image === "string"
+      ? (product as any).image
+      : undefined);
+const score20 = Number(product?.validScore ?? 0);  
+const [showAllIngredients, setShowAllIngredients] = React.useState(false);
   const [showImage, setShowImage] = React.useState(false);
 
   if (isLoading) {
@@ -87,42 +112,53 @@ export default function ProductDetailsScreen() {
     return (
       <View style={styles.notFoundPage}>
         <Text style={styles.notFoundTitle}>Produit introuvable!</Text>
-  
+
         <Text style={styles.notFoundSub}>
           Nous n’avons pas trouvé ce produit dans{"\n"}notre base de données.
         </Text>
-  
+
         <View style={styles.notFoundArt}>
           <NoProduct width={300} height={300} />
         </View>
-  
+
         <Text style={styles.notFoundHint}>
-          Vous pouvez nous aider à l’ajouter en{"\n"}envoyant quelques images du produit.
+          Vous pouvez nous aider à l’ajouter en{"\n"}envoyant quelques images du
+          produit.
         </Text>
-  
+
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>Retour</Text>
         </Pressable>
       </View>
     );
   }
-  const composition = Array.isArray(product?.composition) ? product!.composition : [];
+  const composition = Array.isArray(product?.composition)
+    ? product!.composition
+    : [];
 
   const INITIAL_LIMIT = 15;
 
   const ingredientChips = showAllIngredients
-  ? composition
-  : composition.slice(0, INITIAL_LIMIT);
+    ? composition
+    : composition.slice(0, INITIAL_LIMIT);
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={styles.pageContent}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Top bar */}
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <ArrowLeftIcon></ArrowLeftIcon>
         </Pressable>
         <Text style={styles.topTitle}>Détail Produit</Text>
-        <Pressable onPress={onPressHeart} style={styles.iconBtn} disabled={favLoading}>
-        {isFav ? (
+        <Pressable
+          onPress={onPressHeart}
+          style={styles.iconBtn}
+          disabled={favLoading}
+        >
+          {isFav ? (
             <HeartRedIcon width={24} height={24} />
           ) : (
             <HeartIcon width={24} height={24} />
@@ -149,7 +185,10 @@ export default function ProductDetailsScreen() {
       {heroImage && (
         <Modal visible={showImage} transparent animationType="fade">
           <View style={styles.imageModal}>
-            <Pressable style={styles.imageModalClose} onPress={() => setShowImage(false)}>
+            <Pressable
+              style={styles.imageModalClose}
+              onPress={() => setShowImage(false)}
+            >
               <Text style={styles.imageModalCloseText}>✕</Text>
             </Pressable>
 
@@ -169,42 +208,40 @@ export default function ProductDetailsScreen() {
           {product.ean ? `EAN ${product.ean}` : ""}
         </Text>
 
-<ScoreIcon score={score20} />
-
+        <ScoreIcon score={score20} />
       </View>
 
       {/* Ingredients */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Ingrédients</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Ingrédients</Text>
 
-                {ingredientChips.length === 0 ? (
-                  <Text style={styles.muted}>Aucun ingrédient disponible.</Text>
-                ) : (
-                  <View style={styles.chipWrap}>
-                    {ingredientChips.map((ing, idx) => (
-                      <Chip
-                        key={ing.id ?? idx}
-                        label={ing.name || ing.officialName || "Ingrédient"}
-                        tone={ing.score > 0 ? "accent" : "neutral"}   // ✅ accent if score > 1
-                      />
-                    ))}
-                  </View>
-                )}
+        {ingredientChips.length === 0 ? (
+          <Text style={styles.muted}>Aucun ingrédient disponible.</Text>
+        ) : (
+          <View style={styles.chipWrap}>
+            {ingredientChips.map((ing, idx) => (
+              <Chip
+                key={ing.id ?? idx}
+                label={ing.name || ing.officialName || "Ingrédient"}
+                tone={ing.score > 0 ? "accent" : "neutral"} // ✅ accent if score > 1
+              />
+            ))}
+          </View>
+        )}
 
-                {composition.length > INITIAL_LIMIT && (
-                  <Pressable
-                    onPress={() => setShowAllIngredients((v) => !v)}
-                    style={styles.moreBtn}
-                  >
-                    <Text style={styles.moreText}>
-                      {showAllIngredients
-                        ? "Voir moins"
-                        : `+ ${composition.length - INITIAL_LIMIT} autres`}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-
+        {composition.length > INITIAL_LIMIT && (
+          <Pressable
+            onPress={() => setShowAllIngredients((v) => !v)}
+            style={styles.moreBtn}
+          >
+            <Text style={styles.moreText}>
+              {showAllIngredients
+                ? "Voir moins"
+                : `+ ${composition.length - INITIAL_LIMIT} autres`}
+            </Text>
+          </Pressable>
+        )}
+      </View>
 
       {/* Benefits (static for now like screenshot) */}
       <View style={styles.card}>
@@ -267,19 +304,40 @@ const styles = StyleSheet.create({
   },
 
   title: { fontSize: 26, fontWeight: "900", color: "#3F3B37" },
-  desc: { marginTop: 6, color: "rgba(63,59,55,0.65)", fontSize: 14, lineHeight: 18 },
+  desc: {
+    marginTop: 6,
+    color: "rgba(63,59,55,0.65)",
+    fontSize: 14,
+    lineHeight: 18,
+  },
 
-  scoreRow: { marginTop: 14, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  scoreRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   dot: { width: 10, height: 10, borderRadius: 99, backgroundColor: "#D9EFE6" },
   scoreText: { fontSize: 18, color: "#3F3B37" },
   scoreStrong: { fontWeight: "900" },
-  starRow: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 8 },
+  starRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 8,
+  },
   star: { fontSize: 16 },
   starOn: { color: "#E3B200" },
   starOff: { color: "rgba(0,0,0,0.18)" },
   ratingText: { marginLeft: 6, color: "rgba(63,59,55,0.55)", fontSize: 14 },
 
-  sectionTitle: { fontSize: 18, fontWeight: "900", color: "#3F3B37", marginBottom: 10 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#3F3B37",
+    marginBottom: 10,
+  },
 
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   chip: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 999 },
@@ -290,15 +348,31 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  moreText: { marginTop: 10, color: "rgba(63,59,55,0.55)",fontWeight: "700", },
+  moreText: { marginTop: 10, color: "rgba(63,59,55,0.55)", fontWeight: "700" },
 
-  bulletRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+  },
   bullet: { width: 8, height: 8, borderRadius: 99, backgroundColor: "#CFE9DE" },
   bulletText: { color: "rgba(63,59,55,0.75)", fontSize: 15 },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16, backgroundColor: "#FBF8F4" },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    backgroundColor: "#FBF8F4",
+  },
   muted: { marginTop: 10, color: "rgba(63,59,55,0.6)" },
-  errorTitle: { fontSize: 18, fontWeight: "900", color: "#B42318", marginBottom: 6 },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#B42318",
+    marginBottom: 6,
+  },
 
   btn: {
     marginTop: 16,
@@ -314,12 +388,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  
+
   fullImage: {
     width: "100%",
     height: "100%",
   },
-  
+
   imageModalClose: {
     position: "absolute",
     top: 50,
@@ -332,7 +406,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  
+
   imageModalCloseText: {
     color: "#fff",
     fontSize: 18,
@@ -345,14 +419,14 @@ const styles = StyleSheet.create({
     paddingTop: 70,
     alignItems: "center",
   },
-  
+
   notFoundTitle: {
     fontSize: 34,
     fontWeight: "900",
     color: "#4E4E4E",
     textAlign: "center",
   },
-  
+
   notFoundSub: {
     marginTop: 14,
     fontSize: 18,
@@ -360,14 +434,14 @@ const styles = StyleSheet.create({
     color: "rgba(63,59,55,0.70)",
     textAlign: "center",
   },
-  
+
   notFoundArt: {
     marginTop: 26,
     marginBottom: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  
+
   notFoundHint: {
     marginTop: 8,
     fontSize: 18,
@@ -375,7 +449,7 @@ const styles = StyleSheet.create({
     color: "rgba(63,59,55,0.70)",
     textAlign: "center",
   },
-  
+
   uploadBox: {
     marginTop: 18,
     width: "100%",
@@ -388,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.35)",
   },
-  
+
   uploadIconWrap: {
     width: 64,
     height: 64,
@@ -399,11 +473,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.55)",
   },
-  
+
   uploadIcon: {
     fontSize: 26,
   },
-  
+
   backBtn: {
     marginTop: 22,
     height: 50,
@@ -418,7 +492,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
-  
+
   backBtnText: {
     fontSize: 16,
     fontWeight: "800",
