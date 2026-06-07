@@ -8,7 +8,7 @@ import {
   Pressable,
   Modal,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { useProductByEan } from "../../../../hooks/useProduct";
 import type { Product } from "../../../../types/product";
@@ -66,9 +66,15 @@ function Chip({
 }
 
 export default function ProductDetailsScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
   const { token } = useAuth();
-  const { ean } = useLocalSearchParams<{ ean?: string }>();
+  const { ean, returnTo } = useLocalSearchParams<{
+    ean?: string;
+    returnTo?: string;
+  }>();
   const eanStr = typeof ean === "string" ? ean : "";
+  const returnToPath = typeof returnTo === "string" ? returnTo : undefined;
 
   const { data, isLoading, isError, error, refetch } = useProductByEan(eanStr);
   const productUid = (data as any)?.uid ?? (data as any)?.id;
@@ -85,7 +91,7 @@ export default function ProductDetailsScreen() {
 
   const onPressHeart = async () => {
     if (!token) {
-      router.push("/(auth)/login");
+      router.push("/(tabs)/(auth)/login");
       return;
     }
     if (typeof productUid === "number") {
@@ -103,6 +109,28 @@ export default function ProductDetailsScreen() {
 const score20 = Number(product?.validScore ?? 0);  
 const [showAllIngredients, setShowAllIngredients] = React.useState(false);
   const [showImage, setShowImage] = React.useState(false);
+  const handleBack = () => {
+    if (__DEV__) {
+      console.debug("[nav:product-back]", {
+        pathname,
+        params: { ean, returnTo },
+        canGoBack: router.canGoBack(),
+        returnTo: returnToPath,
+      });
+    }
+
+    if (returnToPath) {
+      router.push(returnToPath as any);
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.push("/(tabs)/(main)");
+  };
 
   if (isLoading) {
     return <ProductDetailLoader />;
@@ -126,7 +154,7 @@ const [showAllIngredients, setShowAllIngredients] = React.useState(false);
           produit.
         </Text>
 
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={handleBack}>
           <Text style={styles.backBtnText}>Retour</Text>
         </Pressable>
       </View>
@@ -137,7 +165,6 @@ const [showAllIngredients, setShowAllIngredients] = React.useState(false);
     : [];
 
   const INITIAL_LIMIT = 15;
-
   const ingredientChips = showAllIngredients
     ? composition
     : composition.slice(0, INITIAL_LIMIT);
@@ -149,7 +176,7 @@ const [showAllIngredients, setShowAllIngredients] = React.useState(false);
     >
       {/* Top bar */}
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+        <Pressable onPress={handleBack} style={styles.iconBtn}>
           <ArrowLeftIcon></ArrowLeftIcon>
         </Pressable>
         <Text style={styles.topTitle}>Détail Produit</Text>

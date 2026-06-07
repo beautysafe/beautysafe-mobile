@@ -35,6 +35,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useBanners } from "../../../hooks/useBanner";
 import { Banner } from "../../../types/product";
 import RenderHtml from "@native-html/render";
+import { useGroup } from "../../../hooks/useGroup";
 
 type Story = { id: string; name: string; avatar: string };
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -54,28 +55,6 @@ const STORY_URL =
   "https://res.cloudinary.com/dozuv3fd2/video/upload/v1769108403/Et_si_ton_stress_impactait_aussi_ta_bouche_Comme_nous_l_explique_dr_sacha_gabriel_le_stress_i6uptq.mp4";
 
 const CATEGORY_ROWS = [{ id: 1 }] as const;
-const HOME_CATEGORIES: HomeCategory[] = [
-  {
-    id: "13",
-    title: "Peau",
-    icon: require("../../../../assets/img/skin.png"),
-    gradient: ["#F8DAD5", "#FDF3EE"],
-    ring: "#D8B8B2",
-  },
-  {
-    id: "4",
-    title: "Cheveux",
-    icon: require("../../../../assets/img/hair.png"),
-    gradient: ["#D6F1E7", "#EEF9F4"],
-    ring: "#A8CFC2",
-  },
-  // { id: "preg", title: "Grossesse/\nAllaitement", icon: "https://img.icons8.com/ios-filled/100/like.png", bg: "#E4F2FB" },
-  // { id: "scalp", title: "Cuir\nchevelu", icon: "https://img.icons8.com/ios-filled/100/virus.png", bg: "#F7F0E3" },
-  // { id: "nails", title: "Ongles /\nLèvres", icon: "https://img.icons8.com/ios-filled/100/hand.png", bg: "#F3E3DE" },
-  // { id: "oil", title: "Huiles de\nmassage", icon: "https://img.icons8.com/ios-filled/100/mortar.png", bg: "#DFF1EA" },
-  // { id: "fem", title: "Hygiène\nféminine", icon: "https://img.icons8.com/ios-filled/100/woman.png", bg: "#E4F2FB" },
-  // { id: "acne", title: "Acné après\nrasage", icon: "https://img.icons8.com/ios-filled/100/happy.png", bg: "#F7F0E3" },
-];
 export default function HomeScreen() {
   const { token, user } = useAuth();
   const [ean, setEan] = useState<string>("");
@@ -89,7 +68,19 @@ export default function HomeScreen() {
   const progress = useSharedValue<number>(0);
   const carouselWidth = SCREEN_WIDTH - 32;
   const { data: bannersData = [] } = useBanners();
+  const { groups, isLoading: groupsLoading, isError: groupsError } = useGroup();
   const banners = Array.isArray(bannersData) ? bannersData : [];
+  const categories = useMemo<HomeCategory[]>(
+    () =>
+      groups.map((group) => ({
+        id: String(group.id),
+        name: group.name,
+        title: group.title,
+        description: group.description,
+        imageUrl: group.imageUrl,
+      })),
+    [groups]
+  );
 
   const renderBannerCard = ({ item }: { item: Banner }) => {
     const bannerImageSource = item.image
@@ -271,64 +262,7 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Stories */}
-      <View style={styles.storiesHeader}>
-        {/* PROFILE (NOT scrollable) */}
-        {!!token && (
-          <>
-            <Pressable
-              style={styles.story}
-              onPress={() => {
-                /* open profile */
-              }}
-            >
-              <View style={styles.storyRingNeutral}>
-                <Image
-                  source={meAvatar}
-                  style={styles.storyAvatar}
-                  contentFit="cover"
-                />
-              </View>
-              <Text style={styles.storyName} numberOfLines={1}>
-                {meName}
-              </Text>
-            </Pressable>
-
-            <View style={styles.storyDivider} />
-          </>
-        )}
-
-        {/* STORIES (scrollable) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storiesRow}
-        >
-          {STORIES.map((s) => (
-            <Pressable
-              key={s.id}
-              style={styles.story}
-              onPress={() => openStory(STORY_URL)}
-            >
-              <View style={styles.storyRing}>
-                <Image
-                  source={{ uri: s.avatar }}
-                  style={styles.storyAvatar}
-                  contentFit="cover"
-                />
-              </View>
-              <Text style={styles.storyName} numberOfLines={1}>
-                {s.name}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-      <StoryVideoModal
-        visible={storyOpen}
-        url={storyUrl || STORY_URL}
-        onClose={() => setStoryOpen(false)}
-      />
+      
       {/* rest of your page... */}
       {/* Advice banner (static) */}
       {banners.length > 0 && (
@@ -581,25 +515,39 @@ export default function HomeScreen() {
       ) : null}
 
       {/* Best products sections by category */}
-      <View style={styles.blockHeader}>
+      {/* <View style={styles.blockHeader}>
         <Text style={styles.blockTitle}>Meilleurs produits</Text>
         <Pressable onPress={() => router.push({ pathname: "/(main)/explore" })}>
           <Text style={styles.blockLink}>Voir Plus</Text>
         </Pressable>
-      </View>
+      </View> */}
 
-      {CATEGORY_ROWS.map((c) => (
+      {/* {CATEGORY_ROWS.map((c) => (
         <FlagRow key={c.id} flagId={c.id} onOpen={openProductDetail} />
-      ))}
-      <CategoriesGrid
-        items={HOME_CATEGORIES}
-        onPress={(cat) =>
-          router.push({
-            pathname: "/(main)/category/[id]",
-            params: { id: cat.id },
-          })
-        }
-      />
+      ))} */}
+      {groupsLoading ? (
+        <View style={styles.categoriesState}>
+          <Text style={styles.muted}>Chargement des categories...</Text>
+        </View>
+      ) : groupsError ? (
+        <View style={styles.categoriesState}>
+          <Text style={styles.errorText}>Impossible de charger les categories.</Text>
+        </View>
+      ) : categories.length ? (
+        <CategoriesGrid
+          items={categories}
+          onPress={(cat) =>
+            router.push({
+              pathname: "/(main)/category/[id]",
+              params: { id: cat.id },
+            })
+          }
+        />
+      ) : (
+        <View style={styles.categoriesState}>
+          <Text style={styles.muted}>Aucune categorie disponible.</Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -821,12 +769,14 @@ const styles = StyleSheet.create({
   },
   bannerOuter: {
     marginHorizontal: 16,
+    marginTop: 12,
   },
   carousel: {
     width: SCREEN_WIDTH - 32,
     alignSelf: "center",
   },
   bannerSlide: {
+    marginTop: 12,
     flex: 1,
     paddingHorizontal: 3,
   },
@@ -1002,6 +952,11 @@ const styles = StyleSheet.create({
   miniScore: { marginTop: 6, color: "rgba(63,59,55,0.6)", fontWeight: "700" },
 
   errorText: { color: "#B42318", fontWeight: "800", marginTop: 8 },
+  categoriesState: {
+    backgroundColor: "rgba(255,255,255,0.7)",
+    borderRadius: 18,
+    padding: 16,
+  },
   scanRow: {
     flexDirection: "row",
     alignItems: "center",
