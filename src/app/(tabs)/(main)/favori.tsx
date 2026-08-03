@@ -125,7 +125,7 @@ export default function FavoritesScreen() {
                 {typeof item.validScore === "number" ? (
                   <View style={styles.scoreRow}>
                     <View style={styles.dot} />
-                    <Text style={styles.scoreText}>{item.validScore}/20</Text>
+                    {/* <Text style={styles.scoreText}>{item.validScore}/20</Text> */}
                   </View>
                 ) : null}
               </Pressable>

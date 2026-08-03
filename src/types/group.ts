@@ -1,13 +1,49 @@
 import type { Product } from "./product";
 
+export type SubGroupReference = {
+  id: number;
+  name: string;
+  imageUrl?: string | null;
+  imageKey?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SubGroupProductList = {
+  id: number;
+  name: string;
+  title: string;
+  description: string;
+  createdAt?: string;
+  updatedAt?: string;
+  subgroup?: SubGroupReference | null;
+};
+
+export type SubGroupJourney = {
+  id: number;
+  name: string;
+  title: string;
+  description: string;
+  createdAt?: string;
+  updatedAt?: string;
+  subgroup?: SubGroupReference | null;
+};
+
 export type SubGroup = {
   id: number;
   name: string;
   imageUrl?: string | null;
+  imageKey?: string | null;
+
   groupId?: number | null;
   group?: Group | null;
-};
 
+  productLists?: SubGroupProductList[];
+  journeys?: SubGroupJourney[];
+
+  createdAt?: string;
+  updatedAt?: string;
+};
 export type Group = {
   id: number;
   name: string;

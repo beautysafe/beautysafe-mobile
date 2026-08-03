@@ -1,75 +1,148 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  Keyboard,
+  Linking,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-  Modal,
-  Keyboard,
-  Pressable,
-  ImageBackground,
-  Dimensions,
-  ColorValue,
-  Animated,
-  Easing,
+  View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Camera, CameraView } from "expo-camera";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import RenderHtml from "@native-html/render";
+import Carousel from "react-native-reanimated-carousel";
+
+import CameraIcon from "../../../../assets/icons/camera.svg";
+import HeartRedIcon from "../../../../assets/icons/heart-red.svg";
 import {
   CategoriesGrid,
   HomeCategory,
 } from "../../../components/CategoriesGrid";
-import CameraIcon from "../../../../assets/icons/camera.svg";
-import { Image } from "expo-image";
-import { Camera } from "expo-camera";
-import { CameraView } from "expo-camera";
-import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import Carousel from "react-native-reanimated-carousel";
-import { useSharedValue } from "react-native-reanimated";
-import { useProductByEan, useProductsByFlag } from "../../../hooks/useProduct";
-import { FlagRow } from "../../../components/flagRow";
 import { useAuth } from "../../../components/AuthProvider";
-import StoryVideoModal from "../../../components/StoryVideoModal";
-import { Ionicons } from "@expo/vector-icons";
 import { useBanners } from "../../../hooks/useBanner";
-import { Banner } from "../../../types/product";
-import RenderHtml from "@native-html/render";
+import { useFavorites } from "../../../hooks/useFavorites";
 import { useGroup } from "../../../hooks/useGroup";
+import { useProductByEan } from "../../../hooks/useProduct";
+import type { Banner } from "../../../types/product";
+import type { FavoriteProduct } from "../../../types/user";
 
-type Story = { id: string; name: string; avatar: string };
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const { width } = Dimensions.get("window");
-
-const STORIES: Story[] = [
-  { id: "s1", name: "Sophie", avatar: "https://i.pravatar.cc/80?img=32" },
-  { id: "s2", name: "Maman", avatar: "https://i.pravatar.cc/80?img=48" },
-  { id: "s3", name: "Sport", avatar: "https://i.pravatar.cc/80?img=12" },
-  { id: "s4", name: "Marie", avatar: "https://i.pravatar.cc/80?img=5" },
-  { id: "s5", name: "Marie", avatar: "https://i.pravatar.cc/80?img=53" },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const SCAN_BOX_WIDTH = SCREEN_WIDTH * 0.78;
 const SCAN_BOX_HEIGHT = 220;
-const STORY_URL =
-  "https://res.cloudinary.com/dozuv3fd2/video/upload/v1769108403/Et_si_ton_stress_impactait_aussi_ta_bouche_Comme_nous_l_explique_dr_sacha_gabriel_le_stress_i6uptq.mp4";
 
-const CATEGORY_ROWS = [{ id: 1 }] as const;
+/*
+ * Replace these values with the official BeautySafe contact information.
+ */
+const SUPPORT_EMAIL = "VOTRE_EMAIL@EXEMPLE.COM";
+const INSTAGRAM_URL = "https://www.instagram.com/VOTRE_COMPTE";
+const WHATSAPP_URL = "https://wa.me/VOTRE_NUMERO";
+
+type QuickLinkItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  onPress: () => void;
+};
+
+function getGreeting() {
+  const currentHour = new Date().getHours();
+
+  return currentHour >= 18 || currentHour < 5
+    ? "Bonsoir"
+    : "Bonjour";
+}
+
+function getProductImage(product: FavoriteProduct) {
+  return (
+    product.images?.[0]?.thumbnail ||
+    product.images?.[0]?.image
+  );
+}
+
+function getProductKey(
+  product: FavoriteProduct,
+  index: number,
+) {
+  return String(product.uid ?? product.ean ?? index);
+}
+
 export default function HomeScreen() {
+  const router = useRouter();
   const { token, user } = useAuth();
-  const [ean, setEan] = useState<string>("");
+
+  const [ean, setEan] = useState("");
   const [showScanner, setShowScanner] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<
-    boolean | null
-  >(null);
+  const [hasCameraPermission, setHasCameraPermission] =
+    useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [showResult, setShowResult] = useState(true);
-  const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
-  const progress = useSharedValue<number>(0);
+  const [scanMode, setScanMode] = useState<
+    "camera" | "manual"
+  >("camera");
+  const [activeBannerIndex, setActiveBannerIndex] =
+    useState(0);
+
+  const inputRef = useRef<TextInput>(null);
+  const scanLineAnim = useRef(
+    new Animated.Value(0),
+  ).current;
+
   const carouselWidth = SCREEN_WIDTH - 32;
+  const greeting = getGreeting();
+
+  const meName =
+    user?.fullName?.trim().split(/\s+/)[0] || "";
+
+  const meAvatar =
+    user?.avatarUrl &&
+    user.avatarUrl.trim().length > 0
+      ? { uri: user.avatarUrl }
+      : require("../../../../assets/img/avatar.png");
+
   const { data: bannersData = [] } = useBanners();
-  const { groups, isLoading: groupsLoading, isError: groupsError } = useGroup();
-  const banners = Array.isArray(bannersData) ? bannersData : [];
+
+ const banners = useMemo(
+  () =>
+    Array.isArray(bannersData)
+      ? bannersData.filter(
+          (banner) => banner.published === true,
+        )
+      : [],
+  [bannersData],
+);
+
+  const paginationDotCount = Math.min(
+    banners.length,
+    3,
+  );
+  const activePaginationDot =
+    banners.length <= 3
+      ? activeBannerIndex
+      : Math.round(
+          (activeBannerIndex /
+            Math.max(banners.length - 1, 1)) *
+            (paginationDotCount - 1),
+        );
+
+  const {
+    groups,
+    isLoading: groupsLoading,
+    isError: groupsError,
+  } = useGroup();
+
   const categories = useMemo<HomeCategory[]>(
     () =>
       groups.map((group) => ({
@@ -79,156 +152,124 @@ export default function HomeScreen() {
         description: group.description,
         imageUrl: group.imageUrl,
       })),
-    [groups]
+    [groups],
   );
 
-  const renderBannerCard = ({ item }: { item: Banner }) => {
-    const bannerImageSource = item.image
-      ? { uri: item.image }
-      : require("../../../../assets/img/winter.png");
-    return (
-      <Pressable
-        style={styles.bannerSlide}
-        onPress={() =>
-          router.push({
-            pathname: "/banner/[id]",
-            params: { id: String(item.id) },
-          })
-        }
-      >
-        <View style={styles.bannerBackground}>
-          <Image
-            source={bannerImageSource}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
+  const {
+    favorites,
+    isLoading: favoritesLoading,
+    isError: favoritesError,
+  } = useFavorites(Boolean(token));
 
-          <LinearGradient
-            colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.45)"]}
-            style={styles.bannerOverlay}
-          >
-            {/* <Text style={styles.bannerTitle}>{item.title}</Text> */}
-            <RenderHtml
-              contentWidth={width -32}
-              source={{ html: item.shortDescription || "" }}
-              baseStyle={{
-                color: "#FFFFFF",
-                textAlign: "center",
-              }}
-              tagsStyles={{
-                p: {
-                  color: "#FFFFFF",
-                  textAlign: "center",
-                  fontSize: 14,
-                  lineHeight: 20,
-                  margin: 0,
-                },
-                h1: {
-                  color: "#FFFFFF",
-                  textAlign: "center",
-                  fontSize: 18,
-                  fontWeight: "800",
-                  margin: 0,
-                },
-                h2: {
-                  color: "#FFFFFF",
-                  textAlign: "center",
-                  fontSize: 16,
-                  fontWeight: "800",
-                  margin: 0,
-                },
-                strong: {
-                  color: "#FFFFFF",
-                  fontWeight: "800",
-                },
-              }}
-            />
-          </LinearGradient>
-        </View>
-      </Pressable>
-    );
-  };
-  const inputRef = useRef<TextInput>(null);
-  const router = useRouter();
-  const meName = user?.fullName?.split(" ")[0] || "User";
-  const meAvatar =
-    user?.avatarUrl && user.avatarUrl.trim().length > 0
-      ? { uri: user.avatarUrl }
-      : require("../../../../assets/img/avatar.png");
+  const favoriteProducts =
+    (favorites ?? []) as FavoriteProduct[];
 
   const {
     data: searchedProduct,
     isFetching: isSearching,
     error: searchError,
-    refetch: refetchProduct,
-  } = useProductByEan(ean, { enabled: false });
-  const [storyOpen, setStoryOpen] = useState(false);
-  const [storyUrl, setStoryUrl] = useState<string | null>(null);
+  } = useProductByEan(ean, {
+    enabled: false,
+  });
 
-  const openStory = (url: string) => {
-    setStoryUrl(url);
-    setStoryOpen(true);
+  const openExternalUrl = async (url: string) => {
+    try {
+      const supported =
+        await Linking.canOpenURL(url);
+
+      if (supported) {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      console.warn("Unable to open URL", error);
+    }
   };
-  // Permission + reset scan state
+
+  const openProductDetail = (
+    eanCode?: string,
+  ) => {
+    if (!eanCode) {
+      return;
+    }
+
+    router.push({
+      pathname: "/product/[ean]",
+      params: {
+        ean: eanCode,
+      },
+    });
+  };
+
+  const quickLinks: QuickLinkItem[] = [
+    {
+      id: "privacy-policy",
+      title: "Politique de confidentialité",
+      subtitle:
+        "Consultez la manière dont BeautySafe protège vos données.",
+      icon: "shield-checkmark-outline",
+      onPress: () =>
+        router.push(
+          "/(tabs)/(main)/privacy-policy",
+        ),
+    },
+    {
+      id: "idea",
+      title: "Une idée à nous partager ?",
+      subtitle: "Toute idée est bonne à prendre",
+      icon: "bulb-outline",
+      onPress: () =>
+        openExternalUrl(
+          `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+            "Une idée pour BeautySafe",
+          )}`,
+        ),
+    },
+    {
+      id: "instagram",
+      title: "Suivez-nous sur Instagram",
+      subtitle:
+        "Suivez l’aventure au quotidien !",
+      icon: "logo-instagram",
+      onPress: () =>
+        openExternalUrl(INSTAGRAM_URL),
+    },
+    {
+      id: "whatsapp",
+      title: "Rejoignez-nous sur WhatsApp",
+      subtitle:
+        "Au plus près de la communauté",
+      icon: "logo-whatsapp",
+      onPress: () =>
+        openExternalUrl(WHATSAPP_URL),
+    },
+  ];
+
   useEffect(() => {
-    if (!showScanner) return;
+    if (!showScanner) {
+      return;
+    }
+
     setScanned(false);
 
     if (hasCameraPermission === null) {
-      (async () => {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setHasCameraPermission(status === "granted");
+      void (async () => {
+        const { status } =
+          await Camera.requestCameraPermissionsAsync();
+
+        setHasCameraPermission(
+          status === "granted",
+        );
       })();
     }
-  }, [showScanner, hasCameraPermission]);
-
-  const openProductDetail = (eanCode: string) => {
-    router.push({ pathname: "/product/[ean]", params: { ean: eanCode } });
-  };
-
-  const handleSearch = () => {
-    const trimmed = ean.trim();
-    if (!trimmed) return;
-
-    Keyboard.dismiss();
-    inputRef.current?.blur();
-
-    router.push({
-      pathname: "/product/[ean]",
-      params: { ean: trimmed },
-    });
-  };
-
-  const handleRemoveResult = () => {
-    setShowResult(false);
-    setEan("");
-  };
-
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    if (scanned) return;
-
-    setScanned(true);
-    setShowScanner(false);
-
-    const code = String(data || "").trim();
-    if (!code) return;
-
-    Keyboard.dismiss();
-    inputRef.current?.blur();
-
-    // Direct navigation to product detail
-    router.push({
-      pathname: "/product/[ean]",
-      params: { ean: code },
-    });
-  };
-
-  // Camera model
-
-  const scanLineAnim = useRef(new Animated.Value(0)).current;
+  }, [
+    showScanner,
+    hasCameraPermission,
+  ]);
 
   useEffect(() => {
-    if (!showScanner) return;
+    if (!showScanner) {
+      return;
+    }
 
     scanLineAnim.setValue(0);
 
@@ -237,13 +278,15 @@ export default function HomeScreen() {
         Animated.timing(scanLineAnim, {
           toValue: 1,
           duration: 1800,
-          easing: Easing.inOut(Easing.ease),
+          easing:
+            Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(scanLineAnim, {
           toValue: 0,
           duration: 1800,
-          easing: Easing.inOut(Easing.ease),
+          easing:
+            Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ]),
@@ -251,103 +294,620 @@ export default function HomeScreen() {
 
     loop.start();
 
-    return () => {
-      loop.stop();
-    };
-  }, [showScanner, scanLineAnim]);
+    return () => loop.stop();
+  }, [
+    showScanner,
+    scanLineAnim,
+  ]);
+
+  const handleSearch = () => {
+    const trimmed = ean.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    inputRef.current?.blur();
+    setShowResult(true);
+
+    openProductDetail(trimmed);
+  };
+
+  const handleRemoveResult = () => {
+    setShowResult(false);
+    setEan("");
+  };
+
+  const handleBarCodeScanned = ({
+    data,
+  }: {
+    data: string;
+  }) => {
+    if (scanned) {
+      return;
+    }
+
+    setScanned(true);
+    setShowScanner(false);
+
+    const code = String(
+      data || "",
+    ).trim();
+
+    if (!code) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    inputRef.current?.blur();
+
+    openProductDetail(code);
+  };
+
+  const renderBannerCard = ({
+    item,
+  }: {
+    item: Banner;
+  }) => {
+    const bannerImageSource = item.image
+      ? { uri: item.image }
+      : require("../../../../assets/img/winter.png");
+
+    return (
+      <Pressable
+        style={styles.bannerSlide}
+        onPress={() =>
+          router.push({
+            pathname: "/banner/[id]",
+            params: {
+              id: String(item.id),
+            },
+          })
+        }
+      >
+        <View
+          style={styles.bannerBackground}
+        >
+          <Image
+            source={bannerImageSource}
+            style={
+              StyleSheet.absoluteFillObject
+            }
+            contentFit="cover"
+          />
+
+          <LinearGradient
+            colors={[
+              "rgba(0,0,0,0.18)",
+              "rgba(0,0,0,0.52)",
+            ]}
+            style={styles.bannerOverlay}
+          >
+            <RenderHtml
+              contentWidth={
+                SCREEN_WIDTH - 72
+              }
+              source={{
+                html:
+                  item.shortDescription ||
+                  "",
+              }}
+              baseStyle={
+                styles.bannerHtmlBase
+              }
+              tagsStyles={{
+                p: styles.bannerHtmlParagraph,
+                h1:
+                  styles.bannerHtmlHeadingOne,
+                h2:
+                  styles.bannerHtmlHeadingTwo,
+                strong:
+                  styles.bannerHtmlStrong,
+              }}
+            />
+          </LinearGradient>
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <ScrollView
       style={styles.page}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={
+        styles.content
+      }
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
-      
-      {/* rest of your page... */}
-      {/* Advice banner (static) */}
-      {banners.length > 0 && (
-        <View style={styles.bannerOuter}>
+      {token && user ? (
+        <Pressable
+          style={styles.profileHeader}
+          onPress={() =>
+            router.push(
+              "/(main)/profile",
+            )
+          }
+        >
+          <Image
+            source={meAvatar}
+            style={styles.profileAvatar}
+            contentFit="cover"
+          />
+
+          <View
+            style={
+              styles.profileTextWrap
+            }
+          >
+            <Text
+              style={
+                styles.greetingText
+              }
+            >
+              {greeting}
+              {meName
+                ? `, ${meName}`
+                : ""}
+            </Text>
+
+            <Text
+              style={
+                styles.greetingSubtitle
+              }
+            >
+              Prenez soin de vous
+              aujourd’hui
+            </Text>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={22}
+            color="#69716F"
+          />
+        </Pressable>
+      ) : null}
+
+      {banners.length > 0 ? (
+        <View
+          style={styles.bannerOuter}
+        >
           <Carousel
             width={carouselWidth}
             height={210}
             data={banners}
-            loop
-            autoPlay
+            loop={banners.length > 1}
+            autoPlay={
+              banners.length > 1
+            }
             autoPlayInterval={3500}
             pagingEnabled
             snapEnabled
             mode="parallax"
             modeConfig={{
-              parallaxScrollingScale: 0.92,
-              parallaxScrollingOffset: 42,
+              parallaxScrollingScale: 0.94,
+              parallaxScrollingOffset: 34,
             }}
             style={styles.carousel}
-            renderItem={renderBannerCard}
+            renderItem={
+              renderBannerCard
+            }
+            onSnapToItem={
+              setActiveBannerIndex
+            }
           />
 
-          <View style={styles.pagination}>
-            {banners.map((_, index) => (
-              <View key={index} style={styles.dot} />
-            ))}
-          </View>
+          {banners.length > 1 ? (
+            <View
+              style={
+                styles.pagination
+              }
+            >
+              {Array.from({
+                length: paginationDotCount,
+              }).map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.dot,
+                      index ===
+                        activePaginationDot &&
+                        styles.dotActive,
+                    ]}
+                  />
+                ))}
+            </View>
+          ) : null}
         </View>
-      )}
+      ) : null}
 
-      {/* Manual input */}
+      {token ? (
+        <View
+          style={
+            styles.favoriteSection
+          }
+        >
+          <View
+            style={styles.blockHeader}
+          >
+            <View>
+              <Text
+                style={
+                  styles.blockTitle
+                }
+              >
+                Mes favoris
+              </Text>
+
+              <Text
+                style={
+                  styles.blockSubtitle
+                }
+              >
+                Retrouvez rapidement les
+                produits que vous aimez
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() =>
+                router.push(
+                  "/(main)/favori",
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.blockLink
+                }
+              >
+                Voir tout
+              </Text>
+            </Pressable>
+          </View>
+
+          {favoritesLoading ? (
+            <View
+              style={
+                styles.favoriteStateCard
+              }
+            >
+              <ActivityIndicator
+                color="#3F3B37"
+              />
+
+              <Text
+                style={
+                  styles.favoriteStateText
+                }
+              >
+                Chargement de vos favoris...
+              </Text>
+            </View>
+          ) : favoritesError ? (
+            <View
+              style={
+                styles.favoriteStateCard
+              }
+            >
+              <Text
+                style={
+                  styles.errorText
+                }
+              >
+                Impossible de charger vos
+                favoris.
+              </Text>
+            </View>
+          ) : favoriteProducts.length >
+            0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.favoriteList
+              }
+            >
+              {favoriteProducts
+                .slice(0, 10)
+                .map(
+                  (
+                    product,
+                    index,
+                  ) => {
+                    const productImage =
+                      getProductImage(
+                        product,
+                      );
+
+                    return (
+                      <Pressable
+                        key={getProductKey(
+                          product,
+                          index,
+                        )}
+                        style={
+                          styles.favoriteCard
+                        }
+                        onPress={() =>
+                          openProductDetail(
+                            product.ean,
+                          )
+                        }
+                      >
+                        <View
+                          style={
+                            styles.favoriteImageWrap
+                          }
+                        >
+                          {productImage ? (
+                            <Image
+                              source={{
+                                uri: productImage,
+                              }}
+                              style={
+                                styles.favoriteImage
+                              }
+                              contentFit="contain"
+                            />
+                          ) : (
+                            <View
+                              style={
+                                styles.favoriteImageFallback
+                              }
+                            >
+                              <Ionicons
+                                name="image-outline"
+                                size={30}
+                                color="#9C9A96"
+                              />
+                            </View>
+                          )}
+
+                          <View
+                            style={
+                              styles.favoriteHeartBadge
+                            }
+                          >
+                            <HeartRedIcon
+                              width={17}
+                              height={17}
+                            />
+                          </View>
+                        </View>
+
+                        <Text
+                          style={
+                            styles.favoriteBrand
+                          }
+                          numberOfLines={1}
+                        >
+                          {product.brand
+                            ?.name ||
+                            "BeautySafe"}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.favoriteName
+                          }
+                          numberOfLines={2}
+                        >
+                          {product.name ||
+                            "Produit"}
+                        </Text>
+
+                        <View
+                          style={
+                            styles.favoriteScoreRow
+                          }
+                        >
+                          <Ionicons
+                            name="star"
+                            size={14}
+                            color="#D39A37"
+                          />
+
+                          <Text
+                            style={
+                              styles.favoriteScoreText
+                            }
+                          >
+                            {typeof product.validScore ===
+                            "number"
+                              ? `${product.validScore}/20`
+                              : "Score indisponible"}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  },
+                )}
+            </ScrollView>
+          ) : (
+            <Pressable
+              style={
+                styles.favoriteEmptyCard
+              }
+              onPress={() =>
+                router.push(
+                  "/(main)/explore",
+                )
+              }
+            >
+              <View
+                style={
+                  styles.favoriteEmptyIcon
+                }
+              >
+                <Ionicons
+                  name="heart-outline"
+                  size={24}
+                  color="#A55B69"
+                />
+              </View>
+
+              <View
+                style={
+                  styles.favoriteEmptyTextWrap
+                }
+              >
+                <Text
+                  style={
+                    styles.favoriteEmptyTitle
+                  }
+                >
+                  Aucun produit favori pour
+                  le moment
+                </Text>
+
+                <Text
+                  style={
+                    styles.favoriteEmptySubtitle
+                  }
+                >
+                  Explorez les produits et
+                  ajoutez ceux que vous
+                  aimez.
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color="#69716F"
+              />
+            </Pressable>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.searchCard}>
         {scanMode === "camera" ? (
           <>
-            <Text style={styles.sectionTitle}>Scanner un produit</Text>
-            {/* <Text style={styles.muted}>Obtenez une analyse instantanée des ingrédients</Text> */}
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
+              Scanner un produit
+            </Text>
 
-            <View style={styles.scanRow}>
+            <Text
+              style={styles.scanSubtitle}
+            >
+              Analysez un produit en scannant
+              simplement son code-barres.
+            </Text>
+
+            <View
+              style={styles.scanRow}
+            >
               <Pressable
                 style={styles.scanBtn}
-                onPress={() => setShowScanner(true)}
+                onPress={() =>
+                  setShowScanner(true)
+                }
               >
-                <Text style={styles.scanBtnText}>Scanner maintenant</Text>
+                <Text
+                  style={
+                    styles.scanBtnText
+                  }
+                >
+                  Scanner maintenant
+                </Text>
               </Pressable>
 
               <Pressable
-                style={styles.camIconBtn}
-                onPress={() => setShowScanner(true)}
+                style={
+                  styles.camIconBtn
+                }
+                onPress={() =>
+                  setShowScanner(true)
+                }
               >
-                <CameraIcon width={22} height={22} />
+                <CameraIcon
+                  width={22}
+                  height={22}
+                />
               </Pressable>
             </View>
 
             <Pressable
-              onPress={() => setScanMode("manual")}
+              onPress={() =>
+                setScanMode("manual")
+              }
               style={styles.scanLink}
             >
-              <Text style={styles.scanLinkText}>
-                Saisir le code manuellement
+              <Text
+                style={
+                  styles.scanLinkText
+                }
+              >
+                Saisir le code
+                manuellement
               </Text>
             </Pressable>
           </>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>Saisir le code manuellement</Text>
-            <Text style={styles.muted}>Saisissez le code-barres (EAN)</Text>
+            <Text
+              style={
+                styles.sectionTitle
+              }
+            >
+              Saisir le code manuellement
+            </Text>
 
-            <View style={styles.searchRow}>
+            <Text
+              style={styles.muted}
+            >
+              Saisissez le code-barres
+              (EAN)
+            </Text>
+
+            <View
+              style={styles.searchRow}
+            >
               <TextInput
                 ref={inputRef}
                 value={ean}
                 onChangeText={setEan}
                 placeholder="3264680010535"
+                placeholderTextColor="rgba(63,59,55,0.4)"
                 keyboardType="numeric"
                 style={styles.input}
-                onSubmitEditing={handleSearch}
+                onSubmitEditing={
+                  handleSearch
+                }
                 returnKeyType="search"
               />
+
               <Pressable
-                style={styles.searchBtn}
+                style={[
+                  styles.searchBtn,
+                  (!ean.trim() ||
+                    isSearching) &&
+                    styles.searchBtnDisabled,
+                ]}
                 onPress={handleSearch}
-                disabled={!ean || isSearching}
+                disabled={
+                  !ean.trim() ||
+                  isSearching
+                }
               >
-                <Text style={styles.searchBtnText}>
-                  {isSearching ? "..." : "OK"}
+                <Text
+                  style={
+                    styles.searchBtnText
+                  }
+                >
+                  {isSearching
+                    ? "..."
+                    : "OK"}
                 </Text>
               </Pressable>
             </View>
@@ -359,7 +919,11 @@ export default function HomeScreen() {
               }}
               style={styles.scanLink}
             >
-              <Text style={styles.scanLinkText}>
+              <Text
+                style={
+                  styles.scanLinkText
+                }
+              >
                 Revenir au scan par caméra
               </Text>
             </Pressable>
@@ -367,78 +931,209 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Scanner modal */}
-      <Modal visible={showScanner} animationType="slide" transparent>
-        <View style={styles.scannerRoot}>
-          {hasCameraPermission === null ? (
-            <View style={styles.permissionCenter}>
-              <Text style={styles.permissionText}>
-                Demande de permission à la caméra...
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        transparent
+      >
+        <View
+          style={styles.scannerRoot}
+        >
+          {hasCameraPermission ===
+          null ? (
+            <View
+              style={
+                styles.permissionCenter
+              }
+            >
+              <ActivityIndicator
+                size="large"
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={
+                  styles.permissionText
+                }
+              >
+                Demande de permission à la
+                caméra...
               </Text>
             </View>
-          ) : hasCameraPermission === false ? (
-            <View style={styles.permissionCenter}>
-              <Text style={styles.permissionDenied}>Permission refusée</Text>
+          ) : hasCameraPermission ===
+            false ? (
+            <View
+              style={
+                styles.permissionCenter
+              }
+            >
+              <Text
+                style={
+                  styles.permissionDenied
+                }
+              >
+                Permission refusée
+              </Text>
+
+              <Text
+                style={
+                  styles.permissionHelp
+                }
+              >
+                Autorisez l’accès à la caméra
+                depuis les réglages de votre
+                téléphone pour scanner un
+                produit.
+              </Text>
 
               <TouchableOpacity
-                onPress={() => setShowScanner(false)}
-                style={styles.closePermissionBtn}
+                onPress={() =>
+                  setShowScanner(false)
+                }
+                style={
+                  styles.closePermissionBtn
+                }
               >
-                <Text style={styles.closePermissionText}>Fermer</Text>
+                <Text
+                  style={
+                    styles.closePermissionText
+                  }
+                >
+                  Fermer
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
             <>
               <CameraView
-                style={StyleSheet.absoluteFillObject}
+                style={
+                  StyleSheet.absoluteFillObject
+                }
                 facing="back"
-                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                onBarcodeScanned={
+                  scanned
+                    ? undefined
+                    : handleBarCodeScanned
+                }
                 barcodeScannerSettings={{
-                  barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"],
+                  barcodeTypes: [
+                    "ean13",
+                    "ean8",
+                    "upc_a",
+                    "upc_e",
+                  ],
                 }}
               />
 
-              {/* dark overlay */}
-              <View style={styles.scannerOverlay}>
-                {/* top bar */}
-                <View style={styles.scannerHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.scannerTitle}>
+              <View
+                style={
+                  styles.scannerOverlay
+                }
+              >
+                <View
+                  style={
+                    styles.scannerHeader
+                  }
+                >
+                  <View
+                    style={
+                      styles.scannerHeaderText
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.scannerTitle
+                      }
+                    >
                       Scanner le code-barres
                     </Text>
-                    <Text style={styles.scannerSubtitle}>
-                      Pointez votre appareil photo vers un code-barres
+
+                    <Text
+                      style={
+                        styles.scannerSubtitle
+                      }
+                    >
+                      Pointez votre appareil
+                      photo vers un code-barres
                     </Text>
                   </View>
 
                   <TouchableOpacity
-                    onPress={() => setShowScanner(false)}
-                    style={styles.closeBtn}
+                    onPress={() =>
+                      setShowScanner(false)
+                    }
+                    style={
+                      styles.scannerCloseBtn
+                    }
                   >
-                    <Ionicons name="close" size={34} color="#fff" />
+                    <Ionicons
+                      name="close"
+                      size={32}
+                      color="#FFFFFF"
+                    />
                   </TouchableOpacity>
                 </View>
 
-                {/* scan area */}
-                <View style={styles.scanAreaWrapper}>
-                  <View style={styles.scanBox}>
-                    {/* corners */}
-                    <View style={[styles.corner, styles.cornerTopLeft]} />
-                    <View style={[styles.corner, styles.cornerTopRight]} />
-                    <View style={[styles.corner, styles.cornerBottomLeft]} />
-                    <View style={[styles.corner, styles.cornerBottomRight]} />
+                <View
+                  style={
+                    styles.scanAreaWrapper
+                  }
+                >
+                  <View
+                    style={
+                      styles.scanBox
+                    }
+                  >
+                    <View
+                      style={[
+                        styles.corner,
+                        styles.cornerTopLeft,
+                      ]}
+                    />
 
-                    {/* animated scan line */}
+                    <View
+                      style={[
+                        styles.corner,
+                        styles.cornerTopRight,
+                      ]}
+                    />
+
+                    <View
+                      style={[
+                        styles.corner,
+                        styles.cornerBottomLeft,
+                      ]}
+                    />
+
+                    <View
+                      style={[
+                        styles.corner,
+                        styles.cornerBottomRight,
+                      ]}
+                    />
+
                     <Animated.View
                       style={[
                         styles.scanLine,
                         {
                           transform: [
                             {
-                              translateY: scanLineAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [10, SCAN_BOX_HEIGHT - 16],
-                              }),
+                              translateY:
+                                scanLineAnim.interpolate(
+                                  {
+                                    inputRange:
+                                      [
+                                        0,
+                                        1,
+                                      ],
+                                    outputRange:
+                                      [
+                                        10,
+                                        SCAN_BOX_HEIGHT -
+                                          16,
+                                      ],
+                                  },
+                                ),
                             },
                           ],
                         },
@@ -447,18 +1142,36 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-                {/* bottom manual text */}
-                <View style={styles.manualEntryWrap}>
-                  <Text style={styles.manualEntryText}>
-                    Souhaitez-vous entrer le code manuellement ?{" "}
+                <View
+                  style={
+                    styles.manualEntryWrap
+                  }
+                >
+                  <Text
+                    style={
+                      styles.manualEntryText
+                    }
+                  >
+                    Souhaitez-vous entrer le
+                    code manuellement ?{" "}
                   </Text>
+
                   <TouchableOpacity
                     onPress={() => {
                       setShowScanner(false);
-                      router.push("/manual-search");
+
+                      router.push(
+                        "/manual-search",
+                      );
                     }}
                   >
-                    <Text style={styles.manualEntryLink}>Cliquez ici</Text>
+                    <Text
+                      style={
+                        styles.manualEntryLink
+                      }
+                    >
+                      Cliquez ici
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -467,46 +1180,101 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* Search result preview card */}
       {searchError ? (
-        <Text style={styles.errorText}>
-          {(searchError as Error).message || "Produit non trouvé"}
+        <Text
+          style={styles.errorText}
+        >
+          {(searchError as Error)
+            .message ||
+            "Produit non trouvé"}
         </Text>
       ) : null}
 
-      {searchedProduct && showResult ? (
-        <View style={styles.resultWrap}>
-          <Pressable onPress={handleRemoveResult} style={styles.closeBtn}>
-            <Text style={styles.closeBtnText}>×</Text>
+      {searchedProduct &&
+      showResult ? (
+        <View
+          style={styles.resultWrap}
+        >
+          <Pressable
+            onPress={handleRemoveResult}
+            style={
+              styles.resultCloseBtn
+            }
+          >
+            <Ionicons
+              name="close"
+              size={18}
+              color="#3F3B37"
+            />
           </Pressable>
 
           <Pressable
-            onPress={() => openProductDetail(searchedProduct.ean)}
+            onPress={() =>
+              openProductDetail(
+                searchedProduct.ean,
+              )
+            }
             style={styles.resultCard}
           >
-            <View style={styles.resultRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.resultTitle} numberOfLines={2}>
+            <View
+              style={styles.resultRow}
+            >
+              <View
+                style={
+                  styles.resultTextWrap
+                }
+              >
+                <Text
+                  style={
+                    styles.resultTitle
+                  }
+                  numberOfLines={2}
+                >
                   {searchedProduct.name}
                 </Text>
-                <Text style={styles.resultSub}>
-                  {searchedProduct.brand?.name}
+
+                <Text
+                  style={
+                    styles.resultSub
+                  }
+                >
+                  {
+                    searchedProduct.brand
+                      ?.name
+                  }
                 </Text>
-                <Text style={styles.resultMeta}>
-                  {searchedProduct.validScore}/20 • EAN {searchedProduct.ean}
+
+                <Text
+                  style={
+                    styles.resultMeta
+                  }
+                >
+                  {
+                    searchedProduct.validScore
+                  }
+                  /20 • EAN{" "}
+                  {searchedProduct.ean}
                 </Text>
               </View>
 
-              {searchedProduct.images?.[0]?.thumbnail ||
-              searchedProduct.images?.[0]?.image ? (
+              {searchedProduct.images?.[0]
+                ?.thumbnail ||
+              searchedProduct.images?.[0]
+                ?.image ? (
                 <Image
                   source={{
                     uri:
-                      searchedProduct.images?.[0]?.thumbnail ||
-                      searchedProduct.images?.[0]?.image,
+                      searchedProduct
+                        .images?.[0]
+                        ?.thumbnail ||
+                      searchedProduct
+                        .images?.[0]
+                        ?.image,
                   }}
-                  style={styles.resultThumb}
-                  contentFit="cover"
+                  style={
+                    styles.resultThumb
+                  }
+                  contentFit="contain"
                 />
               ) : null}
             </View>
@@ -514,99 +1282,701 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {/* Best products sections by category */}
-      {/* <View style={styles.blockHeader}>
-        <Text style={styles.blockTitle}>Meilleurs produits</Text>
-        <Pressable onPress={() => router.push({ pathname: "/(main)/explore" })}>
-          <Text style={styles.blockLink}>Voir Plus</Text>
-        </Pressable>
-      </View> */}
-
-      {/* {CATEGORY_ROWS.map((c) => (
-        <FlagRow key={c.id} flagId={c.id} onOpen={openProductDetail} />
-      ))} */}
       {groupsLoading ? (
-        <View style={styles.categoriesState}>
-          <Text style={styles.muted}>Chargement des categories...</Text>
+        <View
+          style={
+            styles.categoriesState
+          }
+        >
+          <ActivityIndicator
+            color="#3F3B37"
+          />
+
+          <Text
+            style={styles.muted}
+          >
+            Chargement des catégories...
+          </Text>
         </View>
       ) : groupsError ? (
-        <View style={styles.categoriesState}>
-          <Text style={styles.errorText}>Impossible de charger les categories.</Text>
+        <View
+          style={
+            styles.categoriesState
+          }
+        >
+          <Text
+            style={styles.errorText}
+          >
+            Impossible de charger les
+            catégories.
+          </Text>
         </View>
-      ) : categories.length ? (
+      ) : categories.length > 0 ? (
         <CategoriesGrid
           items={categories}
-          onPress={(cat) =>
+          onPress={(category) =>
             router.push({
-              pathname: "/(main)/category/[id]",
-              params: { id: cat.id },
+              pathname:
+                "/(main)/category/[id]",
+              params: {
+                id: category.id,
+              },
             })
           }
         />
       ) : (
-        <View style={styles.categoriesState}>
-          <Text style={styles.muted}>Aucune categorie disponible.</Text>
+        <View
+          style={
+            styles.categoriesState
+          }
+        >
+          <Text
+            style={styles.muted}
+          >
+            Aucune catégorie disponible.
+          </Text>
         </View>
       )}
+
+      <View
+        style={
+          styles.communitySection
+        }
+      >
+        <Pressable
+          style={
+            styles.communityCard
+          }
+          onPress={() =>
+            router.push(
+              "/(tabs)/(main)/faq",
+            )
+          }
+        >
+          <Image
+            source={meAvatar}
+            style={
+              styles.communityAvatar
+            }
+            contentFit="cover"
+          />
+
+          <View
+            style={
+              styles.communityCardText
+            }
+          >
+            <Text
+              style={
+                styles.communityCardTitle
+              }
+            >
+              Vous avez des questions ?
+            </Text>
+
+            <Text
+              style={
+                styles.communityCardSubtitle
+              }
+            >
+              Notre service client est là
+              pour vous aider à tout moment.
+            </Text>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={22}
+            color="#203A42"
+          />
+        </Pressable>
+
+        <Pressable
+          style={
+            styles.communityCard
+          }
+          onPress={() =>
+            router.push(
+              "/(tabs)/(main)/contact",
+            )
+          }
+        >
+          <View
+            style={
+              styles.communityFeatureIcon
+            }
+          >
+            <Ionicons
+              name="mail-outline"
+              size={28}
+              color="#B06B52"
+            />
+          </View>
+
+          <View
+            style={
+              styles.communityCardText
+            }
+          >
+            <Text
+              style={
+                styles.communityCardTitle
+              }
+            >
+              Contactez-nous
+            </Text>
+
+            <Text
+              style={
+                styles.communityCardSubtitle
+              }
+            >
+              Notre équipe est à votre écoute
+              pour répondre à vos questions.
+            </Text>
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={22}
+            color="#203A42"
+          />
+        </Pressable>
+
+        <View
+          style={
+            styles.quickLinksWrap
+          }
+        >
+          {quickLinks.map((item) => (
+            <Pressable
+              key={item.id}
+              style={
+                styles.quickLinkRow
+              }
+              onPress={item.onPress}
+            >
+              <View
+                style={
+                  styles.quickLinkIcon
+                }
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={21}
+                  color="#203A42"
+                />
+              </View>
+
+              <View
+                style={
+                  styles.quickLinkTextWrap
+                }
+              >
+                <Text
+                  style={
+                    styles.quickLinkTitle
+                  }
+                >
+                  {item.title}
+                </Text>
+
+                <Text
+                  style={
+                    styles.quickLinkSubtitle
+                  }
+                >
+                  {item.subtitle}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color="#203A42"
+              />
+            </Pressable>
+          ))}
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#FBF8F4" },
-  content: { padding: 16, paddingBottom: 24, gap: 14 },
-  storiesHeader: {
+  page: {
+    flex: 1,
+    backgroundColor: "#FBF8F4",
+  },
+
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 30,
+    paddingBottom: 96,
+    gap: 18,
+  },
+
+  profileHeader: {
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 34, // keep your status bar spacing
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+
+  profileAvatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "#EAE4DE",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+
+  profileTextWrap: {
+    flex: 1,
+  },
+
+  greetingText: {
+    color: "#203A42",
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "900",
+  },
+
+  greetingSubtitle: {
+    marginTop: 4,
+    color: "#7D8382",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  bannerOuter: {
+    marginHorizontal: -2,
+  },
+
+  carousel: {
+    width: SCREEN_WIDTH - 32,
+    alignSelf: "center",
+  },
+
+  bannerSlide: {
+    flex: 1,
+    paddingHorizontal: 3,
+  },
+
+  bannerBackground: {
+    flex: 1,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "#DDD8D3",
+  },
+
+  bannerOverlay: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    justifyContent: "center",
+  },
+
+  bannerHtmlBase: {
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+
+  bannerHtmlParagraph: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
+    margin: 0,
+  },
+
+  bannerHtmlHeadingOne: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: "800",
+    margin: 0,
+  },
+
+  bannerHtmlHeadingTwo: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: "800",
+    margin: 0,
+  },
+
+  bannerHtmlStrong: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+
+  pagination: {
+    marginTop: 9,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "#D3D0CC",
+  },
+
+  dotActive: {
+    width: 18,
+    backgroundColor: "#687C79",
+  },
+
+  favoriteSection: {
+    gap: 12,
+  },
+
+  blockHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  blockTitle: {
+    color: "#203A42",
+    fontSize: 21,
+    lineHeight: 26,
+    fontWeight: "900",
+  },
+
+  blockSubtitle: {
+    marginTop: 3,
+    maxWidth: SCREEN_WIDTH - 130,
+    color: "#7D8382",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  blockLink: {
+    color: "#687C79",
+    fontSize: 13,
+    fontWeight: "800",
     paddingVertical: 4,
   },
+
+  favoriteList: {
+    paddingRight: 4,
+    gap: 12,
+  },
+
+  favoriteCard: {
+    width: 158,
+    minHeight: 224,
+    padding: 11,
+    borderRadius: 19,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor:
+      "rgba(32,58,66,0.07)",
+  },
+
+  favoriteImageWrap: {
+    position: "relative",
+    width: "100%",
+    height: 118,
+    borderRadius: 15,
+    overflow: "hidden",
+    backgroundColor: "#F4F1ED",
+  },
+
+  favoriteImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  favoriteImageFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  favoriteHeartBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor:
+      "rgba(255,255,255,0.94)",
+  },
+
+  favoriteBrand: {
+    marginTop: 10,
+    color: "#9A8580",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+
+  favoriteName: {
+    minHeight: 36,
+    marginTop: 3,
+    color: "#203A42",
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+
+  favoriteScoreRow: {
+    marginTop: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+
+  favoriteScoreText: {
+    color: "#727978",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  favoriteStateCard: {
+    minHeight: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+  },
+
+  favoriteStateText: {
+    color: "#69716F",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  favoriteEmptyCard: {
+    minHeight: 88,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+  },
+
+  favoriteEmptyIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8E9EC",
+  },
+
+  favoriteEmptyTextWrap: {
+    flex: 1,
+  },
+
+  favoriteEmptyTitle: {
+    color: "#203A42",
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "800",
+  },
+
+  favoriteEmptySubtitle: {
+    marginTop: 3,
+    color: "#828786",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  searchCard: {
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    gap: 12,
+    borderRadius: 20,
+    alignItems: "stretch",
+    backgroundColor: "#DFF1EA",
+  },
+
+  sectionTitle: {
+    color: "#3F3B37",
+    fontSize: 18,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  scanSubtitle: {
+    color: "rgba(63,59,55,0.66)",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+  },
+
+  muted: {
+    color: "rgba(63,59,55,0.6)",
+    textAlign: "center",
+  },
+
+  scanRow: {
+    marginTop: 4,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  scanBtn: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor:
+      "rgba(255,255,255,0.82)",
+  },
+
+  scanBtnText: {
+    color: "#3F3B37",
+    fontWeight: "900",
+    textAlign: "center",
+    flexShrink: 1,
+  },
+
+  camIconBtn: {
+    width: 48,
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor:
+      "rgba(255,255,255,0.82)",
+  },
+
+  scanLink: {
+    width: "100%",
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+
+  scanLinkText: {
+    color: "rgba(63,59,55,0.7)",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  searchRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  input: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 45,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    color: "#3F3B37",
+    backgroundColor:
+      "rgba(255,255,255,0.82)",
+  },
+
+  searchBtn: {
+    width: 54,
+    height: 45,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3F3B37",
+  },
+
+  searchBtnDisabled: {
+    opacity: 0.45,
+  },
+
+  searchBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
+
   scannerRoot: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#000000",
   },
 
   permissionCenter: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
     backgroundColor: "#06153A",
-    paddingHorizontal: 24,
   },
 
   permissionText: {
-    color: "#fff",
+    marginTop: 14,
+    color: "#FFFFFF",
     fontSize: 16,
     textAlign: "center",
   },
 
   permissionDenied: {
-    color: "#ff6b6b",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 18,
+    color: "#FF8A8A",
+    fontSize: 19,
+    fontWeight: "800",
+  },
+
+  permissionHelp: {
+    marginTop: 10,
+    color:
+      "rgba(255,255,255,0.78)",
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
   },
 
   closePermissionBtn: {
-    marginTop: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#ffffff22",
+    marginTop: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 13,
+    backgroundColor:
+      "rgba(255,255,255,0.14)",
   },
 
   closePermissionText: {
-    color: "#fff",
-    fontWeight: "700",
+    color: "#FFFFFF",
+    fontWeight: "800",
   },
 
   scannerOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "space-between",
     paddingTop: 56,
     paddingHorizontal: 22,
-    justifyContent: "space-between",
     paddingBottom: 42,
+    backgroundColor:
+      "rgba(0,0,0,0.45)",
   },
 
   scannerHeader: {
@@ -614,19 +1984,31 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
 
+  scannerHeaderText: {
+    flex: 1,
+  },
+
   scannerTitle: {
-    color: "#fff",
-    fontSize: 30,
-    fontWeight: "800",
-    lineHeight: 38,
     marginRight: 12,
+    color: "#FFFFFF",
+    fontSize: 29,
+    lineHeight: 36,
+    fontWeight: "800",
   },
 
   scannerSubtitle: {
-    color: "rgba(255,255,255,0.85)",
+    marginTop: 6,
+    color:
+      "rgba(255,255,255,0.85)",
     fontSize: 16,
     lineHeight: 24,
-    marginTop: 6,
+  },
+
+  scannerCloseBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   scanAreaWrapper: {
@@ -636,17 +2018,17 @@ const styles = StyleSheet.create({
   },
 
   scanBox: {
+    position: "relative",
     width: SCAN_BOX_WIDTH,
     height: SCAN_BOX_HEIGHT,
-    position: "relative",
   },
 
   corner: {
     position: "absolute",
+    zIndex: 2,
     width: 46,
     height: 46,
-    borderColor: "#fff",
-    zIndex: 2,
+    borderColor: "#FFFFFF",
   },
 
   cornerTopLeft: {
@@ -674,10 +2056,10 @@ const styles = StyleSheet.create({
   },
 
   cornerBottomRight: {
-    bottom: 0,
     right: 0,
-    borderBottomWidth: 8,
+    bottom: 0,
     borderRightWidth: 8,
+    borderBottomWidth: 8,
     borderBottomRightRadius: 18,
   },
 
@@ -691,20 +2073,24 @@ const styles = StyleSheet.create({
     shadowColor: "#F7B500",
     shadowOpacity: 0.9,
     shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
     elevation: 4,
   },
 
   manualEntryWrap: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
     flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
   },
 
   manualEntryText: {
-    color: "rgba(255,255,255,0.9)",
+    color:
+      "rgba(255,255,255,0.9)",
     fontSize: 15,
     textAlign: "center",
   },
@@ -714,286 +2100,176 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-  // IMPORTANT: remove paddingHorizontal here to remove left/right space
-  storiesRow: {
-    gap: 5,
-    paddingRight: 0, // no extra right space
-  },
 
-  story: {
-    width: 70,
-    alignItems: "center",
-    gap: 8,
-  },
-
-  storyAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.06)",
-  },
-
-  storyName: {
-    fontSize: 12,
-    color: "rgba(63,59,55,0.65)",
-    fontWeight: "600",
-  },
-
-  storyRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "rgba(191, 216, 216, 0.9)",
-    backgroundColor: "#fff",
-  },
-
-  storyRingNeutral: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "rgba(190,190,190,0.55)",
-    backgroundColor: "#fff",
-  },
-
-  storyDivider: {
-    width: 1,
-    height: 70,
-    backgroundColor: "rgba(0,0,0,0.12)",
-    marginHorizontal: 6,
-  },
-  bannerOuter: {
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  carousel: {
-    width: SCREEN_WIDTH - 32,
-    alignSelf: "center",
-  },
-  bannerSlide: {
-    marginTop: 12,
-    flex: 1,
-    paddingHorizontal: 3,
-  },
-
-  bannerBackground: {
-    flex: 1,
-    borderRadius: 22,
-    overflow: "hidden",
-    backgroundColor: "#ddd",
-  },
-
-  bannerImage: {
-    borderRadius: 22,
-  },
-
-  bannerOverlay: {
-    flex: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    justifyContent: "center",
-  },
-
-  bannerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
+  errorText: {
+    color: "#B42318",
+    fontWeight: "800",
     textAlign: "center",
-
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
 
-  bannerSub: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#F4F4F5",
-    textAlign: "center",
-
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  resultWrap: {
+    position: "relative",
   },
 
-  bannerItemsWrapper: {
-    marginTop: 12,
-    gap: 6,
-  },
-
-  bannerItem: {
-    fontSize: 13,
-    color: "#F4F4F5",
-    lineHeight: 18,
-
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  pagination: {
-    marginTop: 10,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: "#D4D4D8",
-  },
-  searchCard: {
-    backgroundColor: "#DFF1EA",
-    borderRadius: 15,
-    padding: 14,
-    gap: 10,
-  },
-  sectionTitle: { fontSize: 18, fontWeight: "900", color: "#3F3B37" },
-  muted: { color: "rgba(63,59,55,0.6)" },
-
-  searchRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  input: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  searchBtn: {
-    width: 52,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.08)",
+  resultCloseBtn: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-  },
-  searchBtnText: { fontWeight: "900", color: "#3F3B37" },
-  scanLink: { alignItems: "center", paddingTop: 6 },
-  scanLinkText: { color: "rgba(63,59,55,0.7)", alignSelf: "flex-end" },
-
-  modalWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#0f172a",
-  },
-  camera: { width: 320, height: 380, borderRadius: 18, overflow: "hidden" },
-
-  resultWrap: { position: "relative" },
-  closeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  closeBtnText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 18,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor:
+      "rgba(32,58,66,0.08)",
   },
 
   resultCard: {
-    backgroundColor: "rgba(255,255,255,0.75)",
-    borderRadius: 18,
     padding: 14,
+    borderRadius: 18,
+    backgroundColor:
+      "rgba(255,255,255,0.82)",
   },
-  resultRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-  resultTitle: { fontSize: 16, fontWeight: "900", color: "#3F3B37" },
-  resultSub: { marginTop: 4, color: "rgba(63,59,55,0.6)" },
-  resultMeta: { marginTop: 6, color: "rgba(63,59,55,0.6)" },
+
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  resultTextWrap: {
+    flex: 1,
+  },
+
+  resultTitle: {
+    color: "#3F3B37",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  resultSub: {
+    marginTop: 4,
+    color:
+      "rgba(63,59,55,0.6)",
+  },
+
+  resultMeta: {
+    marginTop: 6,
+    color:
+      "rgba(63,59,55,0.6)",
+  },
+
   resultThumb: {
     width: 68,
     height: 68,
     borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.06)",
+    backgroundColor:
+      "rgba(0,0,0,0.04)",
   },
 
-  blockHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  blockTitle: { fontSize: 20, fontWeight: "900", color: "#3F3B37" },
-  blockLink: { color: "rgba(63,59,55,0.55)", fontWeight: "700" },
-
-  catTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#3F3B37",
-    marginBottom: 8,
-    marginLeft: 2,
-  },
-  miniCard: {
-    width: 160,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    borderRadius: 18,
-    padding: 12,
-    marginRight: 12,
-  },
-  miniImg: { width: "100%", height: 92, borderRadius: 14, marginBottom: 10 },
-  noImg: {
-    width: "100%",
-    height: 92,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  miniTitle: { fontWeight: "800", color: "#3F3B37", fontSize: 13 },
-  miniScore: { marginTop: 6, color: "rgba(63,59,55,0.6)", fontWeight: "700" },
-
-  errorText: { color: "#B42318", fontWeight: "800", marginTop: 8 },
   categoriesState: {
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderRadius: 18,
+    minHeight: 84,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
     padding: 16,
+    borderRadius: 18,
+    backgroundColor:
+      "rgba(255,255,255,0.76)",
   },
-  scanRow: {
+
+  communitySection: {
+    marginTop: 6,
+    gap: 11,
+  },
+
+  communityCard: {
+    minHeight: 92,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginTop: 6,
+    gap: 13,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor:
+      "rgba(32,58,66,0.05)",
   },
 
-  scanBtn: {
+  communityAvatar: {
+    width: 55,
+    height: 55,
+    borderRadius: 28,
+    backgroundColor: "#F0E4DC",
+  },
+
+  communityFeatureIcon: {
+    width: 55,
+    height: 55,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF0E5",
+  },
+
+  communityCardText: {
     flex: 1,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.75)",
+  },
+
+  communityCardTitle: {
+    color: "#203A42",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+  },
+
+  communityCardSubtitle: {
+    marginTop: 4,
+    color: "#858B8A",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  quickLinksWrap: {
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+
+  quickLinkRow: {
+    minHeight: 65,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 9,
+  },
+
+  quickLinkIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  scanBtnText: {
-    fontWeight: "900",
-    color: "#3F3B37",
+  quickLinkTextWrap: {
+    flex: 1,
   },
 
-  camIconBtn: {
-    width: 54,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    alignItems: "center",
-    justifyContent: "center",
+  quickLinkTitle: {
+    color: "#203A42",
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "800",
   },
 
-  camIconText: {
-    fontSize: 18,
-  },
-
-  scanLinkBold: {
-    fontWeight: "900",
-    color: "rgba(63,59,55,0.85)",
+  quickLinkSubtitle: {
+    marginTop: 2,
+    color: "#8A8F8E",
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

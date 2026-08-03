@@ -62,5 +62,6 @@ export type Banner = {
   image: string;
   shortDescription: string;
   longDescriptionHtml: string;
+  published: boolean;
   products?: BannerProduct[];
 };

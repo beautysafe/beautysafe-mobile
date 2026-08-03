@@ -1,6 +1,7 @@
-import React from "react";
+import type { ComponentType } from "react";
 import { Tabs, useRouter } from "expo-router";
 import { StyleSheet, View } from "react-native";
+import type { SvgProps } from "react-native-svg";
 import { useAuth } from "../../components/AuthProvider";
 
 // SVG imports
@@ -16,7 +17,13 @@ import FavoriteActive from "../../../assets/navbar/favorite-active.svg";
 import Users from "../../../assets/navbar/users.svg";
 import UsersActive from "../../../assets/navbar/users-active.svg";
 
-function TabIcon({ focused, ActiveIcon, Icon }: any) {
+type TabIconProps = {
+  focused: boolean;
+  ActiveIcon: ComponentType<SvgProps>;
+  Icon: ComponentType<SvgProps>;
+};
+
+function TabIcon({ focused, ActiveIcon, Icon }: TabIconProps) {
   const Comp = focused ? ActiveIcon : Icon;
   return (
     <View style={styles.iconWrap}>
@@ -28,13 +35,6 @@ function TabIcon({ focused, ActiveIcon, Icon }: any) {
 export default function TabsLayout() {
   const router = useRouter();
   const { token } = useAuth();
-
-  const requireAuth = (e: any) => {
-    if (!token) {
-      e.preventDefault();
-      router.push("/(tabs)/(auth)/login");
-    }
-  };
 
   return (
     <Tabs
@@ -117,6 +117,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="(main)/product/[ean]" options={{ href: null }} />
       <Tabs.Screen name="(main)/profile/edit" options={{ href: null }} />
       <Tabs.Screen name="(main)/manual-search" options={{ href: null }} />
+      <Tabs.Screen name="(main)/faq" options={{ href: null }} />
+      <Tabs.Screen name="(main)/contact" options={{ href: null }} />
+      <Tabs.Screen name="(main)/privacy-policy" options={{ href: null }} />
 
 
       {/* AUTH SCREENS: still show tab bar, but not clickable tabs */}

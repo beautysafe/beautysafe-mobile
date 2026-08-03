@@ -1,21 +1,26 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView} from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
-import { Image } from "expo-image";
 import COUNTRIES from "../../../constants/countries.json";
 import CountryDropdownModal from "../../../components/CountryDropdownModal";
 import { HAIR_TYPES, SKIN_TYPES } from "../../../constants/profileOptions";
 import { SelectField } from "../../../components/SelectField";
-import { register as registerApi, login as loginApi  } from "../../../api/authApi";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { register as registerApi } from "../../../api/authApi";
 import { updateMe } from "../../../api/usersApi";
-import { TOKEN_KEY } from "../../../api/clientApi";
 import { router } from "expo-router";
 // import { useAuth } from "../../../hooks/useAuth";
 import { useAuth } from "../../../components/AuthProvider";
 
 type CountryItem = { name: string; code: string; dial_code: string };
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 
 export default function RegisterScreen() {
@@ -92,7 +97,7 @@ export default function RegisterScreen() {
   
       await updateMe({
         fullName,
-        birthday: birthday ? birthday.toISOString().slice(0, 10) : undefined,
+        birthday: birthday ? formatLocalDate(birthday) : undefined,
         skinType,
         hairType,
         address,
@@ -137,7 +142,7 @@ export default function RegisterScreen() {
         <Text style={styles.label}>Date de naissance</Text>
         <Pressable style={styles.pickerBtn} onPress={pickBirthday}>
           <Text style={styles.pickerText}>
-            {birthday ? birthday.toISOString().slice(0, 10) : "Sélectionnez votre date de naissance"}
+            {birthday ? formatLocalDate(birthday) : "Sélectionnez votre date de naissance"}
           </Text>
         </Pressable>
 

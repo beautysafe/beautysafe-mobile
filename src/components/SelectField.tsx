@@ -1,5 +1,4 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, useColorScheme } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 
 type Props = {
@@ -10,6 +9,10 @@ type Props = {
 };
 
 export function SelectField({ label, value, onChange, options }: Props) {
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === "dark";
+  const pickerTextColor = isDarkMode ? "#FFFFFF" : "#3F3B37";
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
@@ -18,11 +21,15 @@ export function SelectField({ label, value, onChange, options }: Props) {
         <Picker
           selectedValue={value}
           onValueChange={onChange}
-          style={styles.picker}
+          style={[
+            styles.picker,
+            isDarkMode ? styles.pickerTextDark : styles.pickerTextLight,
+          ]}
+          dropdownIconColor={pickerTextColor}
         >
-          <Picker.Item label="Sélectionner..." value="" />
+          <Picker.Item label="Sélectionner..." value="" color={pickerTextColor} />
           {options.map((opt) => (
-            <Picker.Item key={opt} label={opt} value={opt} />
+            <Picker.Item key={opt} label={opt} value={opt} color={pickerTextColor} />
           ))}
         </Picker>
       </View>
@@ -46,5 +53,11 @@ const styles = StyleSheet.create({
 
   picker: {
     height: 54,
+  },
+  pickerTextDark: {
+    color: "#FFFFFF",
+  },
+  pickerTextLight: {
+    color: "#3F3B37",
   },
 });
