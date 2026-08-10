@@ -1,18 +1,27 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.beautysafe.online";
+import { publicApiFetch } from "./clientApi";
 
 /** Get product by EAN */
 export async function getProductByEan(ean: string) {
-  const res = await fetch(`${API_BASE_URL}/products/ean/${ean}`);
-  if (!res.ok) throw new Error("Produit non trouvé");
-  return await res.json();
+  try {
+    return await publicApiFetch(`/products/ean/${ean}`, { method: "GET" });
+  } catch (error: any) {
+    if (error?.status === 404) error.message = "Produit non trouvé";
+    throw error;
+  }
 }
 
 export async function getProductsByFlag(id: number, page = 1, limit = 5) {
-  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.beautysafe.online";
-  const url = `${API_BASE_URL}/products/flag/${id}?page=${page}&limit=${limit}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Erreur lors du chargement des produits");
-  return await res.json();
+  try {
+    return await publicApiFetch(
+      `/products/flag/${id}?page=${page}&limit=${limit}`,
+      { method: "GET" }
+    );
+  } catch (error: any) {
+    if (error?.status === 404) {
+      error.message = "Erreur lors du chargement des produits";
+    }
+    throw error;
+  }
 }
 
 /** Advanced Search */
@@ -63,12 +72,7 @@ export async function searchProducts(paramsInput: ProductSearchParams) {
   if (paramsInput.maxScore !== undefined)
     params.set("maxScore", String(paramsInput.maxScore));
 
-  const url = `${API_BASE_URL}/products/search?${params.toString()}`;
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(txt || "Erreur lors de la recherche");
-  }
-  return await res.json();
+  return publicApiFetch(`/products/search?${params.toString()}`, {
+    method: "GET",
+  });
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import RedScore from "../../../../../assets/score/red.svg";
 import BrownScore from "../../../../../assets/score/brown.svg";
 import YellowScore from "../../../../../assets/score/yellow.svg";
 import GreenScore from "../../../../../assets/score/green.svg";
+import { recordSuccessfulEanSearch } from "../../../../services/ads/interstitial";
 function StarRow({ score20 }: { score20: number }) {
   const stars = starsFrom20(score20);
   return (
@@ -69,12 +70,14 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const { token } = useAuth();
-  const { ean, returnTo } = useLocalSearchParams<{
+  const { ean, returnTo, fromEanSearch } = useLocalSearchParams<{
     ean?: string;
     returnTo?: string;
+    fromEanSearch?: string;
   }>();
   const eanStr = typeof ean === "string" ? ean : "";
   const returnToPath = typeof returnTo === "string" ? returnTo : undefined;
+  const countedSearchRef = useRef<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useProductByEan(eanStr);
   const productUid = (data as any)?.uid ?? (data as any)?.id;
@@ -86,8 +89,31 @@ export default function ProductDetailsScreen() {
 
   const isFav = isFavorite(productUid);
   useEffect(() => {
-    if (eanStr) refetch();
-  }, [eanStr, refetch]);
+    if (!eanStr) {
+      return;
+    }
+
+    let isActive = true;
+
+    void refetch()
+      .then((result) => {
+        if (
+          isActive &&
+          fromEanSearch === "true" &&
+          result.isSuccess &&
+          result.data &&
+          countedSearchRef.current !== eanStr
+        ) {
+          countedSearchRef.current = eanStr;
+          recordSuccessfulEanSearch();
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isActive = false;
+    };
+  }, [eanStr, fromEanSearch, refetch]);
 
   const onPressHeart = async () => {
     if (!token) {

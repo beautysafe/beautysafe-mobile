@@ -4,8 +4,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthProvider, useAuth } from "../components/AuthProvider";
+import { runDevelopmentApiConnectivityCheck } from "../api/clientApi";
+import { initializeAdMob } from "../services/ads/admob";
+import { loadInterstitial } from "../services/ads/interstitial";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        if (error?.code === "API_TIMEOUT") return false;
+        if (error?.status === 401 || error?.status === 403) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
 const ONBOARD_KEY = "hasOnboarded";
 
 function Guard() {
@@ -42,6 +55,18 @@ function Guard() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    void runDevelopmentApiConnectivityCheck();
+  }, []);
+
+  useEffect(() => {
+    void initializeAdMob().then((initialized) => {
+      if (initialized) {
+        void loadInterstitial();
+      }
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

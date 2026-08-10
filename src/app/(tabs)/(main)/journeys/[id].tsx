@@ -20,6 +20,7 @@ import ArrowLeftIcon from "../../../../../assets/icons/arrow-left.svg";
 import CameraIcon from "../../../../../assets/icons/camera.svg";
 import { useJourneyById } from "../../../../hooks/useGroups";
 import { useProductByEan } from "../../../../hooks/useProduct";
+import { recordSuccessfulEanSearch } from "../../../../services/ads/interstitial";
 import type { JourneyProduct } from "../../../../types/group";
 
 const { width, height } = Dimensions.get("window");
@@ -265,6 +266,7 @@ export default function JourneyDetailScreen() {
   const [scannedEan, setScannedEan] = useState("");
   const [showResult, setShowResult] = useState(false);
   const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const countedScanRef = useRef(false);
 
   const productQuery = useProductByEan(scannedEan, { enabled: !!scannedEan });
   const scannedProduct = productQuery.data as any;
@@ -326,12 +328,25 @@ export default function JourneyDetailScreen() {
 
   useEffect(() => {
     if (!scannedEan || productQuery.isFetching) return;
-    if (scannedProduct || productQuery.isError) setShowResult(true);
+
+    if (scannedProduct && productQuery.isSuccess) {
+      setShowResult(true);
+
+      if (!countedScanRef.current) {
+        countedScanRef.current = true;
+        recordSuccessfulEanSearch();
+      }
+
+      return;
+    }
+
+    if (productQuery.isError) setShowResult(true);
   }, [
     scannedEan,
     scannedProduct,
     productQuery.isError,
     productQuery.isFetching,
+    productQuery.isSuccess,
   ]);
 
   const openScanner = () => {
@@ -347,7 +362,10 @@ export default function JourneyDetailScreen() {
     setShowScanner(false);
 
     const code = String(data || "").trim();
-    if (code) setScannedEan(code);
+    if (code) {
+      countedScanRef.current = false;
+      setScannedEan(code);
+    }
   };
 
   if (isLoading) {

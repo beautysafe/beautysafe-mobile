@@ -187,6 +187,7 @@ export default function HomeScreen() {
 
   const openProductDetail = (
     eanCode?: string,
+    fromEanSearch = false,
   ) => {
     if (!eanCode) {
       return;
@@ -196,6 +197,7 @@ export default function HomeScreen() {
       pathname: "/product/[ean]",
       params: {
         ean: eanCode,
+        ...(fromEanSearch ? { fromEanSearch: "true" } : {}),
       },
     });
   };
@@ -311,7 +313,7 @@ export default function HomeScreen() {
     inputRef.current?.blur();
     setShowResult(true);
 
-    openProductDetail(trimmed);
+    openProductDetail(trimmed, true);
   };
 
   const handleRemoveResult = () => {
@@ -342,7 +344,7 @@ export default function HomeScreen() {
     Keyboard.dismiss();
     inputRef.current?.blur();
 
-    openProductDetail(code);
+    openProductDetail(code, true);
   };
 
   const renderBannerCard = ({

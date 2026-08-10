@@ -32,17 +32,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await authApi.getMe();
       setUser(me);
+
+      if (__DEV__) {
+        console.info("[Auth] session restored", { authenticated: true });
+      }
     } catch (error: any) {
       if (
         error?.status === 401 ||
         error?.message?.includes("401") ||
         error?.message?.toLowerCase?.includes("unauthorized")
       ) {
+        if (__DEV__) {
+          console.info("[Auth] stored session rejected", {
+            status: error?.status,
+          });
+        }
+
         await AsyncStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
       } else {
-        console.log("refreshMe failed, token preserved:", error?.message);
+        if (__DEV__) {
+          console.info("[Auth] session validation failed; token preserved", {
+            status: error?.status,
+            code: error?.code,
+            message: error?.message,
+          });
+        }
       }
     }
   };
@@ -53,8 +69,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
         setToken(storedToken);
 
+        if (__DEV__) {
+          console.info("[Auth] storage restored", {
+            authenticated: Boolean(storedToken),
+          });
+        }
+
         if (storedToken) {
           await refreshMe();
+        }
+      } catch (error: any) {
+        setToken(null);
+        setUser(null);
+
+        if (__DEV__) {
+          console.error("[Auth] storage restoration failed", {
+            name: error?.name,
+            message: error?.message,
+          });
         }
       } finally {
         setLoading(false);

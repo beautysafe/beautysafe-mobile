@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'beauty-safe'
+rootProject.name = 'Beauty Safe'
 
 expoAutolinking.useExpoVersionCatalog()
 
