@@ -33,6 +33,8 @@ export interface Product {
   uid: number;
   name: string;
   validScore: number;
+  averageRating: number;
+  ratingsCount: number;
   ean: string;
   type: string;
   brand: Brand;

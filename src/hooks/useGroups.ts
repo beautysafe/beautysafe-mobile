@@ -50,21 +50,51 @@ export function useJourneyById(id?: number | string) {
 export function useProductListProductsInfinite(
   id?: number | string,
   enabled = true,
-  limit = 20
+  limit = 20,
+  startPage = 1
 ) {
   return useInfiniteQuery({
-    queryKey: ["productListProducts", id, limit],
-    enabled: enabled && !!id,
-    initialPageParam: 1,
+    queryKey: [
+      "productListProducts",
+      id,
+      limit,
+      startPage,
+    ],
+
+    enabled:
+      enabled &&
+      !!id &&
+      startPage >= 1,
+
+    initialPageParam: startPage,
+
     queryFn: ({ pageParam }) =>
-      getProductListProducts(id as number | string, Number(pageParam), limit),
+      getProductListProducts(
+        id as number | string,
+        Number(pageParam),
+        limit
+      ),
+
     getNextPageParam: (lastPage) => {
-      if (lastPage.hasMore === false) return undefined;
-      if (lastPage.totalPages && lastPage.page && lastPage.page < lastPage.totalPages) {
+      if (lastPage.hasMore === false) {
+        return undefined;
+      }
+
+      if (
+        lastPage.totalPages &&
+        lastPage.page &&
+        lastPage.page < lastPage.totalPages
+      ) {
         return lastPage.page + 1;
       }
-      if ((lastPage.products?.length ?? 0) < limit) return undefined;
-      return (lastPage.page ?? 1) + 1;
+
+      if (
+        (lastPage.products?.length ?? 0) < limit
+      ) {
+        return undefined;
+      }
+
+      return (lastPage.page ?? startPage) + 1;
     },
   });
 }

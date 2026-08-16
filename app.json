@@ -40,7 +40,8 @@
           "androidAppId": "ca-app-pub-5384648184645614~8973023338"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},

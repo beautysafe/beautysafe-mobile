@@ -384,7 +384,7 @@ export default function BannerDetailsScreen() {
         <Image
           source={{ uri: bannerImageUri }}
           style={styles.heroImage}
-          contentFit="cover"
+          contentFit="fill"
         />
       ) : null}
 
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    padding: 16,
+    padding: 10,
     paddingBottom: 32,
   },
 
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 230,
     borderRadius: 22,
-    marginTop: 18,
+    marginTop: 22,
     paddingBottom: 0,
   },
 

@@ -33,13 +33,28 @@ export type Ingredient = {
 export type Product = {
   uid: number;
   name: string;
-  validScore: number; // your API returns 1..?? (we'll map to /20)
+
+  validScore: number;
+
+  averageRating: number;
+  ratingsCount: number;
+
+  effectivenessAverage: number;
+  needsAverage: number;
+  repurchaseAverage: number;
+
   ean: string;
   type: string;
+
   brand?: Brand;
   category?: Category;
   subCategory?: SubCategory | null;
-  subSubCategory?: { id: number; name: string } | null;
+
+  subSubCategory?: {
+    id: number;
+    name: string;
+  } | null;
+
   images: ProductImage[];
   composition: Ingredient[];
   flags: unknown[];

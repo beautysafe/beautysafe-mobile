@@ -25,11 +25,11 @@ function getSubtitle(cat: HomeCategory) {
 export function CategoriesGrid({ items, onPress }: Props) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>Catégories</Text>
+      <Text style={styles.title}>Besoins & soins</Text>
 
       <View style={styles.list}>
-        {items.map((cat) => {
-          const subtitle = getSubtitle(cat);
+        {[...items].reverse().map((cat) => {
+            const subtitle = getSubtitle(cat);
 
           return (
             <Pressable

@@ -5,6 +5,7 @@ export const SKIN_TYPES = [
     "Mixte",
     "Sensible",
     "Acnéique",
+    "AUTRES"
   ];
   
   export const HAIR_TYPES = [
@@ -14,4 +15,5 @@ export const SKIN_TYPES = [
     "Crépus",
     "Fins",
     "Épais",
+    "AUTRES"
   ];

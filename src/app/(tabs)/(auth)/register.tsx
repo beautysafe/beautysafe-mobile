@@ -1,355 +1,986 @@
-import { useMemo, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView} from "react-native";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
+import React, { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+
+import { router } from "expo-router";
+
 import COUNTRIES from "../../../constants/countries.json";
 import CountryDropdownModal from "../../../components/CountryDropdownModal";
-import { HAIR_TYPES, SKIN_TYPES } from "../../../constants/profileOptions";
+
+import {
+  HAIR_TYPES,
+  SKIN_TYPES,
+} from "../../../constants/profileOptions";
+
 import { SelectField } from "../../../components/SelectField";
+
 import { register as registerApi } from "../../../api/authApi";
 import { updateMe } from "../../../api/usersApi";
-import { router } from "expo-router";
-// import { useAuth } from "../../../hooks/useAuth";
 import { useAuth } from "../../../components/AuthProvider";
 
-type CountryItem = { name: string; code: string; dial_code: string };
+type CountryItem = {
+  name: string;
+  code: string;
+  dial_code: string;
+};
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
+function normalizeName(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    value.trim()
+  );
+}
 
 export default function RegisterScreen() {
-  const countries = COUNTRIES as CountryItem[];
-  const [country, setCountry] = useState<CountryItem>(
-    countries.find((c) => c.code === "FR") || countries[0]
-  );
-  const [phoneCountry, setPhoneCountry] = useState<CountryItem>(
-    countries.find((c) => c.code === "FR") || countries[0]
-  );
-  // Auth
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const { signIn, refreshMe } = useAuth();
+  const countries =
+    COUNTRIES as CountryItem[];
 
-  // Profile
-  const [fullName, setFullName] = useState("");
-  const [birthday, setBirthday] = useState<Date | null>(null); // Date | null
-  const [showDate, setShowDate] = useState(false);
+  const defaultCountry =
+    countries.find(
+      (country) => country.code === "FR"
+    ) || countries[0];
 
-  const [skinType, setSkinType] = useState("");
-  const [hairType, setHairType] = useState("");
+  /*
+   * Authentication
+   */
+  const [email, setEmail] =
+    useState("");
 
+  const [password, setPassword] =
+    useState("");
 
-  const [phoneLocal, setPhoneLocal] = useState("");
+  const [
+    passwordConfirmation,
+    setPasswordConfirmation,
+  ] = useState("");
+
+  /*
+   * Name
+   */
+  const [firstName, setFirstName] =
+    useState("");
+
+  const [lastName, setLastName] =
+    useState("");
+
+  /*
+   * Birthday
+   */
+  const [birthday, setBirthday] =
+    useState<Date | null>(null);
+
+  const [showDate, setShowDate] =
+    useState(false);
+
+  /*
+   * Profile preferences
+   */
+  const [skinType, setSkinType] =
+    useState("");
+
+  const [hairType, setHairType] =
+    useState("");
+
+  /*
+   * Phone
+   */
+  const [
+    phoneCountry,
+    setPhoneCountry,
+  ] =
+    useState<CountryItem>(
+      defaultCountry
+    );
+
+  const [phoneLocal, setPhoneLocal] =
+    useState("");
+
+  /*
+   * Residence country
+   */
+  const [country, setCountry] =
+    useState<CountryItem>(
+      defaultCountry
+    );
+
+  const [
+    openCountry,
+    setOpenCountry,
+  ] = useState(false);
+
+  const [openDial, setOpenDial] =
+    useState(false);
+
+  /*
+   * Submit state
+   */
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = useState(false);
+
+  const [
+    formError,
+    setFormError,
+  ] = useState("");
+
+  const { signIn, refreshMe } =
+    useAuth();
+
+  /*
+   * Backend still expects one fullName.
+   *
+   * Example:
+   *
+   * firstName = "Ilyas"
+   * lastName  = "Chenouf"
+   *
+   * fullName = "Ilyas Chenouf"
+   */
+  const fullName = useMemo(() => {
+    return [
+      normalizeName(firstName),
+      normalizeName(lastName),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }, [firstName, lastName]);
+
   const phoneNumber = useMemo(() => {
-    const dial = phoneCountry?.dial_code || "";
-    return `${dial}${phoneLocal}`.replace(/\s+/g, "");
-  }, [phoneCountry, phoneLocal]);
-  const [openCountry, setOpenCountry] = useState(false);
-  const [openDial, setOpenDial] = useState(false);
-  const [address, setAddress] = useState("");
+    const local =
+      phoneLocal
+        .trim()
+        .replace(/\s+/g, "");
 
-  // Avatar
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
- // uri string
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [avatarKey, setAvatarKey] = useState("");
+    if (!local) {
+      return "";
+    }
 
-  const pickBirthday = () => setShowDate(true);
+    const dial =
+      phoneCountry?.dial_code || "";
 
-  const onChangeBirthday = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    return `${dial}${local}`;
+  }, [
+    phoneCountry,
+    phoneLocal,
+  ]);
+
+  const pickBirthday = () => {
+    Keyboard.dismiss();
+    setShowDate(true);
+  };
+
+  const onChangeBirthday = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date
+  ) => {
     setShowDate(false);
-    if (event.type === "set" && selectedDate) setBirthday(selectedDate);
-  };
-  const pickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
 
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-
-    if (res.canceled) return;
-
-    const uri = res.assets?.[0]?.uri;
-    if (!uri) return;
-
-    setAvatarPreview(uri);
-
-    setAvatarUrl("https://example.com/avatar.jpg");
-    setAvatarKey("avatars/user-xxx.jpg");
-  };
-
- 
-  const submit = async () => {
-    try {
-      await registerApi({ email, password });
-  
-      await signIn(email, password);
-  
-      await updateMe({
-        fullName,
-        birthday: birthday ? formatLocalDate(birthday) : undefined,
-        skinType,
-        hairType,
-        address,
-        phoneNumber,
-        avatarUrl: avatarUrl || undefined,
-        avatarKey: avatarKey || undefined,
-      });
-  
-      await refreshMe();
-  
-      router.replace("/(tabs)/(main)/profile"); // or "/(tabs)/profile" depending on your actual file
-    } catch (err) {
-      console.log("Register flow failed:", err);
+    if (
+      event.type === "set" &&
+      selectedDate
+    ) {
+      setBirthday(selectedDate);
     }
   };
+
+  const validateForm = () => {
+    if (!normalizeName(firstName)) {
+      return "Veuillez saisir votre prénom.";
+    }
+
+    if (!normalizeName(lastName)) {
+      return "Veuillez saisir votre nom.";
+    }
+
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return "Veuillez saisir votre adresse email.";
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      return "Veuillez saisir une adresse email valide.";
+    }
+
+    if (!password) {
+      return "Veuillez saisir un mot de passe.";
+    }
+
+    if (password.length < 6) {
+      return "Le mot de passe doit contenir au moins 6 caractères.";
+    }
+
+    if (!passwordConfirmation) {
+      return "Veuillez confirmer votre mot de passe.";
+    }
+
+    if (
+      password !==
+      passwordConfirmation
+    ) {
+      return "Les mots de passe ne correspondent pas.";
+    }
+
+    return null;
+  };
+
+  const submit = async () => {
+    /*
+     * Prevent accidental double registration.
+     */
+    if (isSubmitting) {
+      return;
+    }
+
+    Keyboard.dismiss();
+    setFormError("");
+
+    const validationError =
+      validateForm();
+
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    try {
+      setIsSubmitting(true);
+
+      /*
+       * 1. Create authentication account
+       */
+      await registerApi({
+        email: normalizedEmail,
+        password,
+      });
+
+      /*
+       * 2. Login to obtain JWT
+       */
+      await signIn(
+        normalizedEmail,
+        password
+      );
+
+      /*
+       * 3. Update profile.
+       *
+       * Backend expects fullName,
+       * therefore firstName + lastName
+       * are combined here.
+       */
+      await updateMe({
+        fullName,
+
+        birthday: birthday
+          ? formatLocalDate(birthday)
+          : undefined,
+
+        skinType:
+          skinType || undefined,
+
+        hairType:
+          hairType || undefined,
+
+        /*
+         * Do not send "+" with no phone
+         * number if user left it empty.
+         */
+        phoneNumber:
+          phoneNumber || undefined,
+
+        /*
+         * The current backend exposes
+         * `address`, not a dedicated
+         * residence-country property.
+         *
+         * We therefore store the selected
+         * residence country in address.
+         */
+        address:
+          country?.name || undefined,
+      });
+
+      /*
+       * 4. Refresh authenticated user
+       */
+      await refreshMe();
+
+      /*
+       * 5. Continue to profile
+       */
+      router.replace(
+        "/(tabs)/(main)/profile"
+      );
+    } catch (error) {
+      console.log(
+        "Register flow failed:",
+        error
+      );
+
+      let message =
+        "Impossible de créer votre compte. Veuillez réessayer.";
+
+      if (error instanceof Error) {
+        const backendMessage =
+          error.message?.trim();
+
+        if (backendMessage) {
+          message = backendMessage;
+        }
+      }
+
+      setFormError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#F7F1EA" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      style={styles.page}
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : undefined
+      }
     >
       <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+        style={styles.scroll}
+        contentContainerStyle={
+          styles.container
+        }
+        keyboardShouldPersistTaps="always"
+        showsVerticalScrollIndicator={
+          false
+        }
+        nestedScrollEnabled
       >
-        <Text style={styles.title}>S'inscrire</Text>
+        <Text style={styles.title}>
+          S'inscrire
+        </Text>
 
-        {/* Avatar */}
-        {/* <Pressable style={styles.avatarBox} onPress={pickAvatar}>
-          {avatarPreview ? (
-            <Image source={{ uri: avatarPreview }} style={styles.avatarImg} contentFit="cover" />
-          ) : (
-            <Text style={styles.avatarText}>Ajouter une photo</Text>
-          )}
-        </Pressable> */}
+        {/* First name */}
+        <Text style={styles.label}>
+          Prénom
+        </Text>
 
-        <Text style={styles.label}>Nom complet</Text>
-        <TextInput value={fullName} onChangeText={setFullName} style={styles.input} placeholder="Saisissez votre nom complet " />
+        <TextInput
+          value={firstName}
+          onChangeText={(value) => {
+            setFirstName(value);
+            setFormError("");
+          }}
+          style={styles.input}
+          placeholder="Saisissez votre prénom"
+          placeholderTextColor="#A29C96"
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="next"
+        />
 
-        
+        {/* Last name */}
+        <Text style={styles.label}>
+          Nom
+        </Text>
+
+        <TextInput
+          value={lastName}
+          onChangeText={(value) => {
+            setLastName(value);
+            setFormError("");
+          }}
+          style={styles.input}
+          placeholder="Saisissez votre nom"
+          placeholderTextColor="#A29C96"
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="next"
+        />
+
         {/* Birthday */}
-        <Text style={styles.label}>Date de naissance</Text>
-        <Pressable style={styles.pickerBtn} onPress={pickBirthday}>
-          <Text style={styles.pickerText}>
-            {birthday ? formatLocalDate(birthday) : "Sélectionnez votre date de naissance"}
+        <Text style={styles.label}>
+          Date de naissance
+        </Text>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.pickerBtn,
+            pressed &&
+              styles.pressed,
+          ]}
+          onPress={pickBirthday}
+        >
+          <Text
+            style={[
+              styles.pickerText,
+              birthday &&
+                styles.selectedPickerText,
+            ]}
+          >
+            {birthday
+              ? formatLocalDate(
+                  birthday
+                )
+              : "Sélectionnez votre date de naissance"}
           </Text>
         </Pressable>
 
-        {showDate && (
+        {showDate ? (
           <DateTimePicker
-            value={birthday || new Date(2000, 0, 1)}
+            value={
+              birthday ||
+              new Date(
+                2000,
+                0,
+                1
+              )
+            }
             mode="date"
-            display={Platform.OS === "ios" ? "spinner" : "default"}
-            maximumDate={new Date()}
-            onChange={onChangeBirthday}
+            display={
+              Platform.OS === "ios"
+                ? "spinner"
+                : "default"
+            }
+            maximumDate={
+              new Date()
+            }
+            onChange={
+              onChangeBirthday
+            }
           />
-        )}
+        ) : null}
 
-      {/* Phone */}
-      <Text style={styles.label}>N° de téléphone</Text>
+        {/* Phone */}
+        <Text style={styles.label}>
+          N° de téléphone
+        </Text>
+
         <View style={styles.phoneRow}>
-          <Pressable style={styles.dialBtn} onPress={() => setOpenDial(true)}>
-            <Text style={styles.dialText}>{phoneCountry.dial_code}</Text>
-            <Text style={styles.chev}>⌄</Text>
+          <Pressable
+            style={styles.dialBtn}
+            onPress={() => {
+              Keyboard.dismiss();
+              setOpenDial(true);
+            }}
+          >
+            <Text
+              style={
+                styles.dialText
+              }
+            >
+              {
+                phoneCountry.dial_code
+              }
+            </Text>
+
+            <Text style={styles.chev}>
+              ⌄
+            </Text>
           </Pressable>
 
           <TextInput
             value={phoneLocal}
-            onChangeText={setPhoneLocal}
-            style={styles.phoneInput}
-            placeholder="Saisissez votre numéro de téléphone"
+            onChangeText={
+              setPhoneLocal
+            }
+            style={
+              styles.phoneInput
+            }
+            placeholder="Saisissez votre numéro"
+            placeholderTextColor="#A29C96"
             keyboardType="phone-pad"
           />
         </View>
 
-      {/* Country */}
-      <Text style={styles.label}>Pays de résidence</Text>
-      <Pressable style={styles.selectRow} onPress={() => setOpenCountry(true)}>
-        <Text style={styles.selectText} numberOfLines={1}>
-          {country?.name || "Sélectionnez votre pays de résidence"}
+        {/* Residence */}
+        <Text style={styles.label}>
+          Pays de résidence
         </Text>
-        <Text style={styles.selectChevron}>⌄</Text>
-      </Pressable>
 
-      {/* Modals */}
-      <CountryDropdownModal
-        visible={openDial}
-        title="Indicatif"
-        items={countries}
-        onClose={() => setOpenDial(false)}
-        onSelect={(c) => setPhoneCountry(c)}
-      />
+        <Pressable
+          style={({ pressed }) => [
+            styles.selectRow,
+            pressed &&
+              styles.pressed,
+          ]}
+          onPress={() => {
+            Keyboard.dismiss();
+            setOpenCountry(true);
+          }}
+        >
+          <Text
+            style={
+              styles.selectText
+            }
+            numberOfLines={1}
+          >
+            {country?.name ||
+              "Sélectionnez votre pays"}
+          </Text>
 
-      <CountryDropdownModal
-        visible={openCountry}
-        title="Pays de résidence"
-        items={countries}
-        onClose={() => setOpenCountry(false)}
-        onSelect={(c) => setCountry(c)}
-      />
-
-      {/* Debug */}
-      {/* <Text>{phoneNumber}</Text> */}
-          
-        {/* Skin/Hair */}
-        <SelectField
-            label="Type de peau"
-            value={skinType}
-            onChange={setSkinType}
-            options={SKIN_TYPES}
-            />
-
-            <SelectField
-            label="Type de cheveux"
-            value={hairType}
-            onChange={setHairType}
-            options={HAIR_TYPES}
-            />        
-
-        <Text style={styles.label}>Email</Text>
-        <TextInput value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" keyboardType="email-address"  placeholder="example@mail.com" />
-
-        <Text style={styles.label}>Mot de passe</Text>
-        <TextInput value={password} onChangeText={setPassword} style={styles.input}  placeholder="******* " secureTextEntry />
-
-        <Pressable style={styles.submit} onPress={submit}>
-          <Text style={styles.submitText}>S’inscrire</Text>
+          <Text
+            style={
+              styles.selectChevron
+            }
+          >
+            ⌄
+          </Text>
         </Pressable>
 
+        <CountryDropdownModal
+          visible={openDial}
+          title="Indicatif"
+          items={countries}
+          onClose={() =>
+            setOpenDial(false)
+          }
+          onSelect={(selected) => {
+            setPhoneCountry(
+              selected
+            );
+
+            setOpenDial(false);
+          }}
+        />
+
+        <CountryDropdownModal
+          visible={openCountry}
+          title="Pays de résidence"
+          items={countries}
+          onClose={() =>
+            setOpenCountry(false)
+          }
+          onSelect={(selected) => {
+            setCountry(selected);
+            setOpenCountry(false);
+          }}
+        />
+
+        {/* Skin */}
+        <SelectField
+          label="Type de peau"
+          value={skinType}
+          onChange={setSkinType}
+          options={SKIN_TYPES}
+        />
+
+        {/* Hair */}
+        <SelectField
+          label="Type de cheveux"
+          value={hairType}
+          onChange={setHairType}
+          options={HAIR_TYPES}
+        />
+
+        {/* Email */}
+        <Text style={styles.label}>
+          Email
+        </Text>
+
+        <TextInput
+          value={email}
+          onChangeText={(value) => {
+            setEmail(value);
+            setFormError("");
+          }}
+          style={styles.input}
+          placeholder="example@mail.com"
+          placeholderTextColor="#A29C96"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+        />
+
+        {/* Password */}
+        <Text style={styles.label}>
+          Mot de passe
+        </Text>
+
+        <TextInput
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            setFormError("");
+          }}
+          style={styles.input}
+          placeholder="Minimum 6 caractères"
+          placeholderTextColor="#A29C96"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+        />
+
+        {/* Password confirmation */}
+        <Text style={styles.label}>
+          Confirmer le mot de passe
+        </Text>
+
+        <TextInput
+          value={
+            passwordConfirmation
+          }
+          onChangeText={(value) => {
+            setPasswordConfirmation(
+              value
+            );
+            setFormError("");
+          }}
+          style={styles.input}
+          placeholder="Confirmez votre mot de passe"
+          placeholderTextColor="#A29C96"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+          returnKeyType="done"
+          onSubmitEditing={submit}
+        />
+
+        {/* Visible error */}
+        {formError ? (
+          <View
+            style={
+              styles.errorBox
+            }
+          >
+            <Text
+              style={
+                styles.errorText
+              }
+            >
+              {formError}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Registration button */}
+        <Pressable
+          onPress={submit}
+          disabled={isSubmitting}
+          style={({ pressed }) => [
+            styles.submit,
+
+            isSubmitting &&
+              styles.submitDisabled,
+
+            pressed &&
+              !isSubmitting &&
+              styles.submitPressed,
+          ]}
+        >
+          {isSubmitting ? (
+            <View
+              style={
+                styles.submitLoading
+              }
+            >
+              <ActivityIndicator
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={
+                  styles.submitText
+                }
+              >
+                Création...
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={
+                styles.submitText
+              }
+            >
+              S’inscrire
+            </Text>
+          )}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 18, paddingBottom: 40, gap: 10, paddingTop: 34 },
-  title: { fontSize: 28, fontWeight: "900", color: "#3F3B37", marginBottom: 6, alignContent: "center" },
+const styles =
+  StyleSheet.create({
+    page: {
+      flex: 1,
+      backgroundColor:
+        "#F7F1EA",
+    },
 
-  label: { fontSize: 13, fontWeight: "800", color: "rgba(63,59,55,0.75)",},
+    scroll: {
+      flex: 1,
+    },
 
-  input: {
-    height: 50,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-    color: "#3F3B37",
-  },
+    container: {
+      paddingHorizontal: 18,
+      paddingTop: 34,
+      paddingBottom: 60,
 
-  pickerBtn: {
-    height: 50,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    // alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-  },
-  pickerText: { fontSize: 14, fontWeight: "700", color: "rgba(63, 59, 55, 0.56)" },
+      gap: 10,
+    },
 
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    title: {
+      fontSize: 28,
+      fontWeight: "900",
 
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-  },
-  chipOn: { backgroundColor: "#3F3B37" },
-  chipText: { fontSize: 12, fontWeight: "800", color: "rgba(63,59,55,0.75)" },
-  chipTextOn: { color: "#fff" },
+      color: "#3F3B37",
 
-  phoneCode: {
-    height: 50,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-  },
-  phoneCodeText: { fontSize: 14, fontWeight: "800", color: "#3F3B37" },
+      marginBottom: 10,
+    },
 
-  avatarBox: {
-    alignSelf: "center",
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    borderWidth: 2,
-    borderColor: "rgba(63,59,55,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    marginBottom: 10,
-  },
-  avatarImg: { width: "100%", height: "100%" },
-  avatarText: { fontSize: 13, fontWeight: "800", color: "rgba(63,59,55,0.7)" },
+    label: {
+      marginTop: 2,
 
-  submit: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: "#3F3B37",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 14,
-  },
-  submitText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  phoneRow: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    gap: 10,
-  },
+      fontSize: 13,
+      fontWeight: "800",
 
-  dialBtn: {
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dialText: { fontSize: 14, fontWeight: "900", color: "#3F3B37" },
-  chev: { fontSize: 14, color: "rgba(63,59,55,0.55)" },
+      color:
+        "rgba(63,59,55,0.75)",
+    },
 
-  phoneInput: {
-    flex: 1,
-    height: "100%",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#3F3B37",
-  },
+    input: {
+      height: 54,
 
-  selectRow: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(63,59,55,0.12)",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
-  selectText: { flex: 1, fontSize: 14, fontWeight: "700", color: "rgba(63,59,55,0.55)" },
-  selectChevron: { fontSize: 16, color: "rgba(63,59,55,0.55)" },
-});
+      borderRadius: 14,
+
+      paddingHorizontal: 14,
+
+      backgroundColor:
+        "#FFFFFF",
+
+      borderWidth: 1,
+
+      borderColor:
+        "rgba(63,59,55,0.12)",
+
+      color: "#3F3B37",
+
+      fontSize: 14,
+      fontWeight: "600",
+    },
+
+    pickerBtn: {
+      minHeight: 54,
+
+      borderRadius: 14,
+
+      paddingHorizontal: 14,
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        "#FFFFFF",
+
+      borderWidth: 1,
+
+      borderColor:
+        "rgba(63,59,55,0.12)",
+    },
+
+    pickerText: {
+      fontSize: 14,
+      fontWeight: "700",
+
+      color: "#A29C96",
+    },
+
+    selectedPickerText: {
+      color: "#3F3B37",
+    },
+
+    phoneRow: {
+      height: 54,
+
+      borderRadius: 14,
+
+      backgroundColor:
+        "#FFFFFF",
+
+      borderWidth: 1,
+
+      borderColor:
+        "rgba(63,59,55,0.12)",
+
+      flexDirection: "row",
+      alignItems: "center",
+
+      paddingHorizontal: 12,
+
+      gap: 10,
+    },
+
+    dialBtn: {
+      height: 44,
+
+      flexDirection: "row",
+      alignItems: "center",
+
+      gap: 6,
+    },
+
+    dialText: {
+      fontSize: 14,
+      fontWeight: "900",
+
+      color: "#3F3B37",
+    },
+
+    chev: {
+      fontSize: 14,
+
+      color:
+        "rgba(63,59,55,0.55)",
+    },
+
+    phoneInput: {
+      flex: 1,
+      height: "100%",
+
+      color: "#3F3B37",
+
+      fontSize: 14,
+      fontWeight: "600",
+    },
+
+    selectRow: {
+      height: 54,
+
+      borderRadius: 14,
+
+      backgroundColor:
+        "#FFFFFF",
+
+      borderWidth: 1,
+
+      borderColor:
+        "rgba(63,59,55,0.12)",
+
+      flexDirection: "row",
+      alignItems: "center",
+
+      paddingHorizontal: 14,
+    },
+
+    selectText: {
+      flex: 1,
+
+      fontSize: 14,
+      fontWeight: "700",
+
+      color: "#3F3B37",
+    },
+
+    selectChevron: {
+      fontSize: 16,
+
+      color:
+        "rgba(63,59,55,0.55)",
+    },
+
+    pressed: {
+      opacity: 0.75,
+    },
+
+    errorBox: {
+      marginTop: 6,
+
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+
+      borderRadius: 12,
+
+      backgroundColor:
+        "#FCECEA",
+    },
+
+    errorText: {
+      color: "#B42318",
+
+      fontSize: 13,
+      fontWeight: "700",
+
+      lineHeight: 19,
+    },
+
+    submit: {
+      height: 56,
+
+      borderRadius: 16,
+
+      backgroundColor:
+        "#3F3B37",
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      marginTop: 14,
+
+      marginBottom: 10,
+    },
+
+    submitPressed: {
+      opacity: 0.82,
+    },
+
+    submitDisabled: {
+      opacity: 0.65,
+    },
+
+    submitText: {
+      color: "#FFFFFF",
+
+      fontSize: 16,
+      fontWeight: "900",
+    },
+
+    submitLoading: {
+      flexDirection: "row",
+      alignItems: "center",
+
+      gap: 10,
+    },
+  });

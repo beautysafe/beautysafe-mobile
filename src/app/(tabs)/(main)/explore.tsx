@@ -428,7 +428,7 @@ export default function ExploreScreen() {
 
           <Text style={[styles.title, { color: titleColor }]} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.subtitle} numberOfLines={1}>{item.brand?.name || " "}</Text>
-          <Text style={styles.scoreText}>{(item.validScore ?? 0)}/20</Text>
+          {/* <Text style={styles.scoreText}>{(item.validScore ?? 0)}/20</Text> */}
         </View>
       </Pressable>
     );

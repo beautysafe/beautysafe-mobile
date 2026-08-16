@@ -74,11 +74,17 @@ export type JourneyPhase = {
 
 export type Journey = {
   id: number;
-  name?: string | null;
+  name: string;
   title?: string | null;
   description?: string | null;
+
+  subgroup?: SubGroup | null;
+
   phases?: JourneyPhase[];
-  ingredients?: unknown[];
+  ingredients?: any[];
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ProductListProductsResponse = {

@@ -42,19 +42,21 @@ function goBack(
     ...details,
   });
 
+  // Prefer the explicit previous page.
+  // In our Tabs navigator, router.back() can resolve to Home.
   if (returnTo) {
-    router.push(returnTo as never);
+    router.replace(returnTo as never);
     return;
   }
 
+  // Fallback only when no returnTo was supplied.
   if (router.canGoBack()) {
     router.back();
     return;
   }
 
-  router.push("/(tabs)/(main)");
+  router.replace("/(tabs)/(main)");
 }
-
 function ChoiceCard({
   bg,
   image,
@@ -272,10 +274,10 @@ export default function SubGroupChoiceScreen() {
       <ChoiceCard
         bg="#E9F7F2"
         image={ROUTINE_IMAGE}
-        title="Vérifier ma routine"
+        title="Choisir ma routine"
         text={
           firstJourney
-            ? "Analysez votre routine actuelle et identifiez les incompatibilités."
+            ? "Choisissez votre routine adaptés  vos besoins."
             : "Aucune routine n’est actuellement disponible pour cette catégorie."
         }
         button={firstJourney ? "Commencer" : "Indisponible"}
@@ -369,6 +371,7 @@ const styles = StyleSheet.create({
   },
 
   topBar: {
+    paddingTop: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -383,6 +386,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "rgba(63, 59, 55, 0.08)",
+    
   },
 
   iconBtnPressed: {

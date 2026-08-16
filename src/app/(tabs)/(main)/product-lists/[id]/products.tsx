@@ -1,4 +1,8 @@
-import React, { useMemo } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,13 +13,24 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import ArrowLeftIcon from "../../../../../../assets/icons/arrow-left.svg";
 import { useProductListProductsInfinite } from "../../../../../hooks/useGroups";
 import type { Product } from "../../../../../types/product";
 
+const PAGE_SIZE = 20;
+
 function getImage(product: Product) {
-  return product.images?.[0]?.thumbnail || product.images?.[0]?.image || null;
+  return (
+    product.images?.[0]?.thumbnail ||
+    product.images?.[0]?.image ||
+    null
+  );
+}
+
+function getPaginationStorageKey(productListId: string) {
+  return `beautysafe:product-list:${productListId}:next-page`;
 }
 
 function ProductCard({ item }: { item: Product }) {
@@ -25,25 +40,47 @@ function ProductCard({ item }: { item: Product }) {
   return (
     <Pressable
       onPress={() => {
-        if (item.ean) {
-          router.push({ pathname: "/product/[ean]", params: { ean: item.ean } });
+        if (!item.ean) {
+          return;
         }
+
+        router.push({
+          pathname: "/product/[ean]",
+          params: {
+            ean: item.ean,
+          },
+        });
       }}
       style={styles.cardWrap}
     >
       <View style={styles.card}>
         {img ? (
-          <Image source={{ uri: img }} style={styles.image} contentFit="cover" />
+          <Image
+            source={{ uri: img }}
+            style={styles.image}
+            contentFit="cover"
+          />
         ) : (
           <View style={styles.imagePlaceholder} />
         )}
-        <Text style={styles.title} numberOfLines={2}>
+
+        <Text
+          style={styles.title}
+          numberOfLines={2}
+        >
           {item.name}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
+
+        <Text
+          style={styles.subtitle}
+          numberOfLines={1}
+        >
           {item.brand?.name || " "}
         </Text>
-        <Text style={styles.scoreText}>{item.validScore ?? 0}/20</Text>
+
+        {/* <Text style={styles.scoreText}>
+          {item.validScore ?? 0}/20
+        </Text> */}
       </View>
     </Pressable>
   );
@@ -51,34 +88,291 @@ function ProductCard({ item }: { item: Product }) {
 
 export default function ProductListProductsScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const query = useProductListProductsInfinite(id, true, 20);
+
+  const { id, returnTo } = useLocalSearchParams<{
+    id: string;
+    returnTo?: string;
+  }>();
+
+  const productListId = Array.isArray(id)
+    ? id[0]
+    : id;
+
+  const returnToPath =
+    typeof returnTo === "string"
+      ? returnTo
+      : undefined;
+
+  /**
+   * null means we are still restoring
+   * the saved pagination position.
+   */
+  const [startPage, setStartPage] =
+    useState<number | null>(null);
+
+  /**
+   * Restore the page that should be shown
+   * first the next time this product list opens.
+   */
+  useEffect(() => {
+    let mounted = true;
+
+    const restorePage = async () => {
+      try {
+        const key =
+          getPaginationStorageKey(
+            productListId
+          );
+
+        const saved =
+          await AsyncStorage.getItem(key);
+
+        if (!mounted) {
+          return;
+        }
+
+        const parsed = Number(saved);
+
+        if (
+          Number.isFinite(parsed) &&
+          parsed >= 1
+        ) {
+          setStartPage(parsed);
+        } else {
+          setStartPage(1);
+        }
+      } catch (error) {
+        console.warn(
+          "[ProductList] Could not restore page",
+          error
+        );
+
+        if (mounted) {
+          setStartPage(1);
+        }
+      }
+    };
+
+    restorePage();
+
+    return () => {
+      mounted = false;
+    };
+  }, [productListId]);
+
+  const query =
+    useProductListProductsInfinite(
+      productListId,
+      startPage !== null,
+      PAGE_SIZE,
+      startPage ?? 1
+    );
+
 
   const products = useMemo(
-    () => query.data?.pages.flatMap((page) => page.products ?? []) ?? [],
+    () =>
+      query.data?.pages.flatMap(
+        (page) => page.products ?? []
+      ) ?? [],
     [query.data]
   );
 
-  const initialLoading = query.isLoading && products.length === 0;
+  /**
+   * Determine which API page was loaded last.
+   */
+  const lastLoadedPage = useMemo(() => {
+    const pages =
+      query.data?.pages ?? [];
+
+    if (!pages.length) {
+      return startPage ?? 1;
+    }
+
+    const last =
+      pages[pages.length - 1] as any;
+
+    return (
+      Number(last?.page) ||
+      startPage ||
+      1
+    );
+  }, [query.data, startPage]);
+
+  /**
+   * Determine total available API pages.
+   */
+  const totalPages = useMemo(() => {
+    const pages =
+      query.data?.pages ?? [];
+
+    if (!pages.length) {
+      return 1;
+    }
+
+    const last =
+      pages[pages.length - 1] as any;
+
+    return Math.max(
+      Number(last?.totalPages) || 1,
+      1
+    );
+  }, [query.data]);
+
+  const restoringPage =
+    startPage === null;
+
+  const initialLoading =
+    restoringPage ||
+    (query.isLoading &&
+      products.length === 0);
+
+  /**
+   * Save the page that should be displayed
+   * on the NEXT visit.
+   *
+   * Example:
+   *
+   * Current visit:
+   * page 1 + page 2 loaded
+   *
+   * Save:
+   * page 3
+   *
+   * Next visit:
+   * starts at page 3
+   *
+   * If current visit reaches the final page:
+   * save page 1.
+   */
+  const saveNextStartPage =
+    async () => {
+      if (startPage === null) {
+        return;
+      }
+
+      try {
+        let nextPage =
+          lastLoadedPage + 1;
+
+        if (
+          lastLoadedPage >= totalPages
+        ) {
+          nextPage = 1;
+        }
+
+        const key =
+          getPaginationStorageKey(
+            productListId
+          );
+
+        await AsyncStorage.setItem(
+          key,
+          String(nextPage)
+        );
+
+        if (__DEV__) {
+          console.log(
+            "[ProductList pagination]",
+            {
+              productListId,
+              startPage,
+              lastLoadedPage,
+              totalPages,
+              nextPage,
+            }
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "[ProductList] Could not save next page",
+          error
+        );
+      }
+    };
+
+  const handleBack = async () => {
+    /**
+     * Save pagination before leaving.
+     */
+    await saveNextStartPage();
+
+    /**
+     * Keep the navigation fix that is
+     * already working in your project.
+     */
+    if (returnToPath) {
+      router.replace(
+        returnToPath as never
+      );
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace(
+      "/(tabs)/(main)"
+    );
+  };
+
+  /**
+   * Lazy loading.
+   */
+  const handleEndReached = () => {
+    if (
+      query.hasNextPage &&
+      !query.isFetchingNextPage
+    ) {
+      query.fetchNextPage();
+    }
+  };
 
   if (initialLoading) {
     return (
       <View style={styles.centerPage}>
-        <ActivityIndicator />
-        <Text style={styles.stateText}>Chargement des produits...</Text>
+        <ActivityIndicator
+          size="large"
+          color="#86C6BA"
+        />
+
+        <Text style={styles.stateText}>
+          Chargement des produits...
+        </Text>
       </View>
     );
   }
 
-  if (query.isError && products.length === 0) {
+  if (
+    query.isError &&
+    products.length === 0
+  ) {
     return (
       <View style={styles.centerPage}>
-        <Text style={styles.errorTitle}>Impossible de charger les produits.</Text>
-        <Pressable onPress={() => query.refetch()} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Reessayer</Text>
+        <Text style={styles.errorTitle}>
+          Impossible de charger les
+          produits.
+        </Text>
+
+        <Pressable
+          onPress={() =>
+            query.refetch()
+          }
+          style={styles.retryBtn}
+        >
+          <Text style={styles.retryText}>
+            Réessayer
+          </Text>
         </Pressable>
-        <Pressable onPress={() => router.back()} style={styles.backTextBtn}>
-          <Text style={styles.backText}>Retour</Text>
+
+        <Pressable
+          onPress={handleBack}
+          style={styles.backTextBtn}
+        >
+          <Text style={styles.backText}>
+            Retour
+          </Text>
         </Pressable>
       </View>
     );
@@ -87,35 +381,113 @@ export default function ProductListProductsScreen() {
   return (
     <View style={styles.page}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <ArrowLeftIcon width={22} height={22} />
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [
+            styles.headerBtn,
+            pressed && {
+              opacity: 0.7,
+            },
+          ]}
+        >
+          <ArrowLeftIcon
+            width={22}
+            height={22}
+          />
         </Pressable>
-        <Text style={styles.headerTitle}>Explorer les produits</Text>
-        <View style={styles.headerSpacer} />
+
+        <Text style={styles.headerTitle}>
+          Explorer les produits
+        </Text>
+
+        <View
+          style={styles.headerSpacer}
+        />
       </View>
+
+      {/* {__DEV__ ? (
+        <View style={styles.debugPage}>
+          <Text style={styles.debugText}>
+            Page actuelle :{" "}
+            {startPage ?? "-"} • Dernière
+            chargée : {lastLoadedPage} /{" "}
+            {totalPages}
+          </Text>
+        </View>
+      ) : null} */}
 
       <FlatList
         data={products}
-        keyExtractor={(item, index) => item.ean || String(item.uid ?? index)}
+        keyExtractor={(
+          item,
+          index
+        ) =>
+          item.ean ||
+          String(
+            item.uid ?? index
+          )
+        }
         numColumns={2}
-        columnWrapperStyle={styles.colWrap}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => <ProductCard item={item} />}
-        onEndReached={() => {
-          if (query.hasNextPage && !query.isFetchingNextPage) {
-            query.fetchNextPage();
-          }
-        }}
+        columnWrapperStyle={
+          styles.colWrap
+        }
+        contentContainerStyle={
+          styles.listContent
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        renderItem={({ item }) => (
+          <ProductCard item={item} />
+        )}
+        onEndReached={
+          handleEndReached
+        }
         onEndReachedThreshold={0.6}
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Aucun produit disponible.</Text>
+          <View
+            style={styles.emptyCard}
+          >
+            <Text
+              style={styles.emptyText}
+            >
+              Aucun produit disponible.
+            </Text>
           </View>
         }
         ListFooterComponent={
           query.isFetchingNextPage ? (
-            <View style={styles.footerLoader}>
-              <ActivityIndicator />
+            <View
+              style={
+                styles.footerLoader
+              }
+            >
+              <ActivityIndicator
+                color="#86C6BA"
+              />
+
+              <Text
+                style={
+                  styles.footerText
+                }
+              >
+                Chargement...
+              </Text>
+            </View>
+          ) : !query.hasNextPage &&
+            products.length > 0 ? (
+            <View
+              style={
+                styles.endMessage
+              }
+            >
+              <Text
+                style={
+                  styles.endMessageText
+                }
+              >
+                Fin de la liste
+              </Text>
             </View>
           ) : null
         }
@@ -125,7 +497,12 @@ export default function ProductListProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#FBF8F4", paddingTop: 34 },
+  page: {
+    flex: 1,
+    backgroundColor: "#FBF8F4",
+    paddingTop: 34,
+  },
+
   centerPage: {
     flex: 1,
     backgroundColor: "#FBF8F4",
@@ -133,75 +510,243 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
+
   header: {
     paddingTop: 14,
     paddingHorizontal: 16,
     paddingBottom: 10,
+
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+
     backgroundColor: "#FFFFFF",
+
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
+    borderBottomColor:
+      "rgba(0,0,0,0.06)",
   },
+
   headerBtn: {
     width: 44,
     height: 44,
+
     borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.04)",
+
+    backgroundColor:
+      "rgba(0,0,0,0.04)",
+
     alignItems: "center",
     justifyContent: "center",
   },
-  headerSpacer: { width: 44, height: 44 },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "900", color: "#3F3B37" },
-  listContent: { padding: 16, paddingBottom: 24 },
-  colWrap: { justifyContent: "space-between" },
-  cardWrap: { width: "48%", marginBottom: 14 },
+
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+
+  headerTitle: {
+    flex: 1,
+
+    textAlign: "center",
+
+    fontSize: 18,
+    fontWeight: "900",
+
+    color: "#3F3B37",
+  },
+
+  listContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+
+  colWrap: {
+    justifyContent:
+      "space-between",
+  },
+
+  cardWrap: {
+    width: "48%",
+    marginBottom: 14,
+  },
+
   card: {
     backgroundColor: "#FFFFFF",
+
     borderRadius: 22,
+
     overflow: "hidden",
+
     paddingBottom: 12,
+
     shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+
     elevation: 2,
   },
-  image: { width: "100%", height: 170 },
-  imagePlaceholder: { width: "100%", height: 170, backgroundColor: "rgba(0,0,0,0.06)" },
-  title: { marginTop: 12, paddingHorizontal: 12, fontSize: 16, fontWeight: "900", color: "#3F3B37" },
+
+  image: {
+    width: "100%",
+    height: 170,
+  },
+
+  imagePlaceholder: {
+    width: "100%",
+    height: 170,
+
+    backgroundColor:
+      "rgba(0,0,0,0.06)",
+  },
+
+  title: {
+    marginTop: 12,
+
+    paddingHorizontal: 12,
+
+    fontSize: 16,
+    fontWeight: "900",
+
+    color: "#3F3B37",
+  },
+
   subtitle: {
     marginTop: 6,
+
     paddingHorizontal: 12,
-    color: "rgba(63,59,55,0.55)",
+
+    color:
+      "rgba(63,59,55,0.55)",
+
     fontWeight: "700",
   },
-  scoreText: { marginTop: 8, paddingHorizontal: 12, color: "rgba(63,59,55,0.6)", fontWeight: "800" },
+
+  scoreText: {
+    marginTop: 8,
+
+    paddingHorizontal: 12,
+
+    color:
+      "rgba(63,59,55,0.6)",
+
+    fontWeight: "800",
+  },
+
   emptyCard: {
-    backgroundColor: "rgba(255,255,255,0.75)",
+    backgroundColor:
+      "rgba(255,255,255,0.75)",
+
     borderRadius: 18,
+
     padding: 18,
   },
-  emptyText: { color: "rgba(63,59,55,0.6)", fontWeight: "700" },
-  footerLoader: { paddingVertical: 16 },
-  stateText: { marginTop: 10, color: "rgba(63,59,55,0.65)", fontWeight: "700" },
+
+  emptyText: {
+    color:
+      "rgba(63,59,55,0.6)",
+
+    fontWeight: "700",
+  },
+
+  footerLoader: {
+    paddingVertical: 18,
+
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+
+    gap: 10,
+  },
+
+  footerText: {
+    color:
+      "rgba(63,59,55,0.55)",
+
+    fontWeight: "700",
+  },
+
+  endMessage: {
+    paddingVertical: 20,
+
+    alignItems: "center",
+  },
+
+  endMessageText: {
+    color:
+      "rgba(63,59,55,0.45)",
+
+    fontWeight: "700",
+  },
+
+  stateText: {
+    marginTop: 10,
+
+    color:
+      "rgba(63,59,55,0.65)",
+
+    fontWeight: "700",
+  },
+
   errorTitle: {
     fontSize: 18,
     fontWeight: "900",
+
     color: "#B42318",
+
     textAlign: "center",
+
     marginBottom: 16,
   },
+
   retryBtn: {
     paddingHorizontal: 18,
+
     height: 44,
+
     borderRadius: 999,
+
     backgroundColor: "#86C6BA",
+
     alignItems: "center",
     justifyContent: "center",
   },
-  retryText: { color: "#fff", fontWeight: "900" },
-  backTextBtn: { marginTop: 12, padding: 10 },
-  backText: { color: "rgba(63,59,55,0.7)", fontWeight: "800" },
+
+  retryText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
+
+  backTextBtn: {
+    marginTop: 12,
+    padding: 10,
+  },
+
+  backText: {
+    color:
+      "rgba(63,59,55,0.7)",
+
+    fontWeight: "800",
+  },
+
+  debugPage: {
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+
+    backgroundColor:
+      "rgba(134,198,186,0.08)",
+  },
+
+  debugText: {
+    color:
+      "rgba(63,59,55,0.55)",
+
+    fontSize: 11,
+    textAlign: "center",
+  },
 });

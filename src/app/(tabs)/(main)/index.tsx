@@ -36,6 +36,8 @@ import { useGroup } from "../../../hooks/useGroup";
 import { useProductByEan } from "../../../hooks/useProduct";
 import type { Banner } from "../../../types/product";
 import type { FavoriteProduct } from "../../../types/user";
+import ScanHistoryCard from "../../../components/ScanHistoryCard";
+import { useMyScans, useMyScanStats } from "../../../hooks/useScans";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -164,6 +166,14 @@ export default function HomeScreen() {
   const favoriteProducts =
     (favorites ?? []) as FavoriteProduct[];
 
+  const canLoadScanHistory = Boolean(token && user);
+  const {
+    data: scansPreview,
+    isLoading: scansLoading,
+    isError: scansError,
+  } = useMyScans(1, 6, canLoadScanHistory);
+  const { data: scanStats } = useMyScanStats(canLoadScanHistory);
+
   const {
     data: searchedProduct,
     isFetching: isSearching,
@@ -188,6 +198,7 @@ export default function HomeScreen() {
   const openProductDetail = (
     eanCode?: string,
     fromEanSearch = false,
+    source?: "scan",
   ) => {
     if (!eanCode) {
       return;
@@ -198,6 +209,14 @@ export default function HomeScreen() {
       params: {
         ean: eanCode,
         ...(fromEanSearch ? { fromEanSearch: "true" } : {}),
+        ...(source
+          ? {
+              source,
+              scanNavigationId: `${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2)}`,
+            }
+          : {}),
       },
     });
   };
@@ -344,75 +363,36 @@ export default function HomeScreen() {
     Keyboard.dismiss();
     inputRef.current?.blur();
 
-    openProductDetail(code, true);
+    openProductDetail(code, true, "scan");
   };
 
-  const renderBannerCard = ({
-    item,
-  }: {
-    item: Banner;
-  }) => {
-    const bannerImageSource = item.image
-      ? { uri: item.image }
-      : require("../../../../assets/img/winter.png");
+const renderBannerCard = ({ item }: { item: Banner }) => {
+  const bannerImageSource = item.image
+    ? { uri: item.image }
+    : require("../../../../assets/img/winter.png");
 
-    return (
-      <Pressable
-        style={styles.bannerSlide}
-        onPress={() =>
-          router.push({
-            pathname: "/banner/[id]",
-            params: {
-              id: String(item.id),
-            },
-          })
-        }
-      >
-        <View
-          style={styles.bannerBackground}
-        >
-          <Image
-            source={bannerImageSource}
-            style={
-              StyleSheet.absoluteFillObject
-            }
-            contentFit="cover"
-          />
-
-          <LinearGradient
-            colors={[
-              "rgba(0,0,0,0.18)",
-              "rgba(0,0,0,0.52)",
-            ]}
-            style={styles.bannerOverlay}
-          >
-            <RenderHtml
-              contentWidth={
-                SCREEN_WIDTH - 72
-              }
-              source={{
-                html:
-                  item.shortDescription ||
-                  "",
-              }}
-              baseStyle={
-                styles.bannerHtmlBase
-              }
-              tagsStyles={{
-                p: styles.bannerHtmlParagraph,
-                h1:
-                  styles.bannerHtmlHeadingOne,
-                h2:
-                  styles.bannerHtmlHeadingTwo,
-                strong:
-                  styles.bannerHtmlStrong,
-              }}
-            />
-          </LinearGradient>
-        </View>
-      </Pressable>
-    );
-  };
+  return (
+    <Pressable
+      style={styles.bannerSlide}
+      onPress={() =>
+        router.push({
+          pathname: "/banner/[id]",
+          params: { id: String(item.id) },
+        })
+      }
+    >
+      <View style={styles.bannerBackground}>
+        <Image
+          source={bannerImageSource}
+          style={styles.bannerImage}
+          contentFit="contain"
+          contentPosition="center"
+          transition={200}
+        />
+      </View>
+    </Pressable>
+  );
+};
 
   return (
     <ScrollView
@@ -423,107 +403,86 @@ export default function HomeScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {token && user ? (
-        <Pressable
-          style={styles.profileHeader}
-          onPress={() =>
-            router.push(
-              "/(main)/profile",
-            )
-          }
-        >
-          <Image
-            source={meAvatar}
-            style={styles.profileAvatar}
-            contentFit="cover"
-          />
+     {token && user ? (
+    <Pressable
+      style={styles.profileHeader}
+      onPress={() => router.push("/(main)/profile")}
+    >
+      <Image
+        source={meAvatar}
+        style={styles.profileAvatar}
+        contentFit="cover"
+      />
 
+      <View style={styles.profileTextWrap}>
+        <Text style={styles.greetingText}>
+          {greeting}
+          {meName ? `, ${meName}` : ""}
+        </Text>
+
+        <Text style={styles.greetingSubtitle}>
+          Prenez soin de vous aujourd’hui
+        </Text>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={22}
+        color="#69716F"
+      />
+    </Pressable>
+  ) : (
+    <View style={styles.profileHeader}>
+      <View style={styles.profileTextWrap}>
+        <Text style={styles.greetingText}>
+          {greeting}
+        </Text>
+
+        <Text style={styles.greetingSubtitle}>
+          Prenez soin de vous aujourd’hui
+        </Text>
+      </View>
+    </View>
+  )}
+
+{banners.length > 0 ? (
+  <View style={styles.bannerOuter}>
+    <Carousel
+      width={carouselWidth}
+      height={210}
+      data={banners}
+      loop={banners.length > 1}
+      autoPlay={banners.length > 1}
+      autoPlayInterval={3500}
+      pagingEnabled
+      snapEnabled
+      mode="parallax"
+      modeConfig={{
+        parallaxScrollingScale: 0.96,
+        parallaxScrollingOffset: 28,
+      }}
+      style={styles.carousel}
+      renderItem={renderBannerCard}
+      onSnapToItem={setActiveBannerIndex}
+    />
+
+    {banners.length > 1 ? (
+      <View style={styles.pagination}>
+        {Array.from({
+          length: paginationDotCount,
+        }).map((_, index) => (
           <View
-            style={
-              styles.profileTextWrap
-            }
-          >
-            <Text
-              style={
-                styles.greetingText
-              }
-            >
-              {greeting}
-              {meName
-                ? `, ${meName}`
-                : ""}
-            </Text>
-
-            <Text
-              style={
-                styles.greetingSubtitle
-              }
-            >
-              Prenez soin de vous
-              aujourd’hui
-            </Text>
-          </View>
-
-          <Ionicons
-            name="chevron-forward"
-            size={22}
-            color="#69716F"
+            key={index}
+            style={[
+              styles.dot,
+              index === activePaginationDot && styles.dotActive,
+            ]}
           />
-        </Pressable>
-      ) : null}
-
-      {banners.length > 0 ? (
-        <View
-          style={styles.bannerOuter}
-        >
-          <Carousel
-            width={carouselWidth}
-            height={210}
-            data={banners}
-            loop={banners.length > 1}
-            autoPlay={
-              banners.length > 1
-            }
-            autoPlayInterval={3500}
-            pagingEnabled
-            snapEnabled
-            mode="parallax"
-            modeConfig={{
-              parallaxScrollingScale: 0.94,
-              parallaxScrollingOffset: 34,
-            }}
-            style={styles.carousel}
-            renderItem={
-              renderBannerCard
-            }
-            onSnapToItem={
-              setActiveBannerIndex
-            }
-          />
-
-          {banners.length > 1 ? (
-            <View
-              style={
-                styles.pagination
-              }
-            >
-              {Array.from({
-                length: paginationDotCount,
-              }).map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.dot,
-                      index ===
-                        activePaginationDot &&
-                        styles.dotActive,
-                    ]}
-                  />
-                ))}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
+        ))}
+      </View>
+    ) : null}
+  </View>
+) : null}
 
       {token ? (
         <View
@@ -543,14 +502,14 @@ export default function HomeScreen() {
                 Mes favoris
               </Text>
 
-              <Text
+              {/* <Text
                 style={
                   styles.blockSubtitle
                 }
               >
                 Retrouvez rapidement les
                 produits que vous aimez
-              </Text>
+              </Text> */}
             </View>
 
             <Pressable
@@ -703,7 +662,7 @@ export default function HomeScreen() {
                             "Produit"}
                         </Text>
 
-                        <View
+                        {/* <View
                           style={
                             styles.favoriteScoreRow
                           }
@@ -724,7 +683,7 @@ export default function HomeScreen() {
                               ? `${product.validScore}/20`
                               : "Score indisponible"}
                           </Text>
-                        </View>
+                        </View> */}
                       </Pressable>
                     );
                   },
@@ -1251,10 +1210,7 @@ export default function HomeScreen() {
                     styles.resultMeta
                   }
                 >
-                  {
-                    searchedProduct.validScore
-                  }
-                  /20 • EAN{" "}
+                   EAN{" "}
                   {searchedProduct.ean}
                 </Text>
               </View>
@@ -1283,6 +1239,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       ) : null}
+
 
       {groupsLoading ? (
         <View
@@ -1340,6 +1297,68 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {canLoadScanHistory ? (
+        <View style={styles.scanHistorySection}>
+          <View style={styles.blockHeader}>
+            <View>
+              <Text style={styles.blockTitle}>Historique des scans</Text>
+              {/* <Text style={styles.blockSubtitle}>
+                {scanStats
+                  ? `${scanStats.totalScans} scans • ${scanStats.uniqueProducts} produits différents`
+                  : `${scansPreview?.totalScans ?? 0} scans`}
+              </Text> */}
+            </View>
+
+            <Pressable
+              onPress={() => router.push("/(tabs)/(main)/scan-history")}
+            >
+              <Text style={styles.blockLink}>Voir tout</Text>
+            </Pressable>
+          </View>
+
+          {scansLoading ? (
+            <View style={styles.scanHistoryStateCard}>
+              <ActivityIndicator color="#3F3B37" />
+              <Text style={styles.scanHistoryStateText}>
+                Chargement de vos scans...
+              </Text>
+            </View>
+          ) : scansError ? (
+            <View style={styles.scanHistoryStateCard}>
+              <Text style={styles.errorText}>
+                Impossible de charger votre historique.
+              </Text>
+            </View>
+          ) : scansPreview?.items?.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scanHistoryList}
+            >
+              {scansPreview.items.map((scan) => (
+                <ScanHistoryCard
+                  key={scan.id}
+                  scan={scan}
+                  compact
+                  onPress={() =>
+                    router.push({
+                      pathname: "/product/[ean]",
+                      params: { ean: scan.product.ean },
+                    })
+                  }
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.scanHistoryStateCard}>
+              <Ionicons name="scan-outline" size={24} color="#687C79" />
+              <Text style={styles.scanHistoryStateText}>
+                Vos prochains scans apparaîtront ici.
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : null}
       <View
         style={
           styles.communitySection
@@ -1513,17 +1532,17 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 16,
-    paddingTop: 30,
+    paddingTop: 40,
     paddingBottom: 96,
-    gap: 18,
+    gap: 10,
   },
 
   profileHeader: {
-    minHeight: 72,
+    // minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 4,
+    // gap: 12,
+    // paddingHorizontal: 4,
   },
 
   profileAvatar: {
@@ -1540,105 +1559,100 @@ const styles = StyleSheet.create({
   },
 
   greetingText: {
+    marginTop: 10,
     color: "#203A42",
     fontSize: 22,
-    lineHeight: 27,
+    // lineHeight: 27,
     fontWeight: "900",
   },
 
   greetingSubtitle: {
-    marginTop: 4,
+    // marginTop: 4,
     color: "#7D8382",
     fontSize: 13,
     lineHeight: 18,
   },
 
-  bannerOuter: {
-    marginHorizontal: -2,
-  },
+ bannerOuter: {
+  marginHorizontal: -2,
+},
 
-  carousel: {
-    width: SCREEN_WIDTH - 32,
-    alignSelf: "center",
-  },
+carousel: {
+  width: SCREEN_WIDTH - 32,
+  alignSelf: "center",
+},
 
-  bannerSlide: {
-    flex: 1,
-    paddingHorizontal: 3,
-  },
+bannerSlide: {
+  flex: 1,
+  paddingHorizontal: 3,
+},
 
-  bannerBackground: {
-    flex: 1,
-    borderRadius: 22,
-    overflow: "hidden",
-    backgroundColor: "#DDD8D3",
-  },
+bannerBackground: {
+  flex: 1,
+  borderRadius: 22,
+  overflow: "hidden",
 
-  bannerOverlay: {
-    flex: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    justifyContent: "center",
-  },
+  // Important when using "contain"
+  backgroundColor: "#FBF8F4",
 
-  bannerHtmlBase: {
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
+  alignItems: "center",
+  justifyContent: "center",
+},
 
-  bannerHtmlParagraph: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontSize: 14,
-    lineHeight: 20,
-    margin: 0,
-  },
+bannerImage: {
+  width: "100%",
+  height: "100%",
+},
 
-  bannerHtmlHeadingOne: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontSize: 19,
-    lineHeight: 25,
-    fontWeight: "800",
-    margin: 0,
-  },
+pagination: {
+  marginTop: 9,
+  flexDirection: "row",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: 6,
+},
 
-  bannerHtmlHeadingTwo: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontSize: 17,
-    lineHeight: 23,
-    fontWeight: "800",
-    margin: 0,
-  },
+dot: {
+  width: 7,
+  height: 7,
+  borderRadius: 999,
+  backgroundColor: "#D3D0CC",
+},
 
-  bannerHtmlStrong: {
-    color: "#FFFFFF",
-    fontWeight: "800",
-  },
-
-  pagination: {
-    marginTop: 9,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: "#D3D0CC",
-  },
-
-  dotActive: {
-    width: 18,
-    backgroundColor: "#687C79",
-  },
+dotActive: {
+  width: 18,
+  backgroundColor: "#687C79",
+},
 
   favoriteSection: {
     gap: 12,
+  },
+
+  scanHistorySection: {
+    gap: 12,
+  },
+
+  scanHistoryList: {
+    paddingRight: 4,
+    gap: 12,
+  },
+
+  scanHistoryStateCard: {
+    minHeight: 92,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  scanHistoryStateText: {
+    color: "#69716F",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
   },
 
   blockHeader: {
@@ -1806,8 +1820,8 @@ const styles = StyleSheet.create({
   searchCard: {
     width: "100%",
     paddingHorizontal: 16,
-    paddingVertical: 18,
-    gap: 12,
+    paddingVertical: 10,
+    // gap: 12,
     borderRadius: 20,
     alignItems: "stretch",
     backgroundColor: "#DFF1EA",
@@ -2242,7 +2256,7 @@ const styles = StyleSheet.create({
   },
 
   quickLinkRow: {
-    minHeight: 65,
+    // minHeight: 65,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
