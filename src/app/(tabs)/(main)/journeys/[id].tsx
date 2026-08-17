@@ -41,7 +41,7 @@ import {
 
 import { useProductByEan } from "../../../../hooks/useProduct";
 
-import { recordSuccessfulEanSearch } from "../../../../services/ads/interstitial";
+import { recordSuccessfulCameraScan } from "../../../../services/ads/ad-session";
 
 import type { JourneyProduct } from "../../../../types/group";
 
@@ -861,6 +861,9 @@ export default function JourneyDetailScreen() {
   const countedScanRef =
     useRef(false);
 
+  const scanEventIdRef =
+    useRef<string | null>(null);
+
   const productQuery =
     useProductByEan(
       scannedEan,
@@ -1046,7 +1049,21 @@ export default function JourneyDetailScreen() {
         countedScanRef.current =
           true;
 
-        recordSuccessfulEanSearch();
+        const scanEventId =
+          scanEventIdRef.current;
+
+        if (scanEventId) {
+          void recordSuccessfulCameraScan(
+            scanEventId
+          ).catch((scanError) => {
+            if (__DEV__) {
+              console.warn(
+                "[Ads] journey camera scan could not be processed",
+                scanError
+              );
+            }
+          });
+        }
       }
 
       return;
@@ -1068,6 +1085,8 @@ export default function JourneyDetailScreen() {
   const openScanner = () => {
     setScannedEan("");
     setShowResult(false);
+    scanEventIdRef.current =
+      null;
     setShowScanner(true);
   };
 
@@ -1095,6 +1114,11 @@ export default function JourneyDetailScreen() {
 
       countedScanRef.current =
         false;
+
+      scanEventIdRef.current =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
 
       setScannedEan(
         code

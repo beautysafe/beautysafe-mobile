@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getBannerAdUnitId,
   getGoogleMobileAdsModule,
   initializeAdMob,
+  isAdNoFillError,
 } from "../../services/ads/admob";
 import type { GoogleMobileAdsModule } from "../../services/ads/admob";
 
@@ -15,6 +17,9 @@ type AdBannerProps = {
 export function AdBanner({ style }: AdBannerProps) {
   const [adsModule, setAdsModule] = useState<GoogleMobileAdsModule | null>(null);
   const [hasFailed, setHasFailed] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const reservedHeight = width >= 600 ? 100 : 66;
 
   useEffect(() => {
     let isMounted = true;
@@ -38,31 +43,43 @@ export function AdBanner({ style }: AdBannerProps) {
     };
   }, []);
 
-  if (!adsModule || hasFailed) {
-    return null;
-  }
-
-  const adUnitId = getBannerAdUnitId(adsModule.TestIds.ADAPTIVE_BANNER);
-
-  if (!adUnitId) {
-    return null;
-  }
-
-  const BannerAd = adsModule.BannerAd;
+  const adUnitId = adsModule
+    ? getBannerAdUnitId(adsModule.TestIds.BANNER)
+    : null;
+  const BannerAd = adsModule?.BannerAd;
 
   return (
-    <View style={[styles.container, style]}>
-      <BannerAd
-        unitId={adUnitId}
-        size={adsModule.BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        onAdFailedToLoad={(error) => {
-          setHasFailed(true);
+    <View
+      style={[
+        styles.container,
+        {
+          height: reservedHeight,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+        style,
+      ]}
+    >
+      {BannerAd && adsModule && adUnitId && !hasFailed ? (
+        <BannerAd
+          unitId={adUnitId}
+          size={adsModule.BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          onAdFailedToLoad={(error) => {
+            setHasFailed(true);
 
-          if (__DEV__) {
-            console.warn("The banner ad failed to load.", error);
-          }
-        }}
-      />
+            if (!__DEV__) {
+              return;
+            }
+
+            if (isAdNoFillError(error)) {
+              console.info("[Ads] banner no-fill");
+              return;
+            }
+
+            console.warn("[Ads] banner failed to load", error);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -70,7 +87,9 @@ export function AdBanner({ style }: AdBannerProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
+    justifyContent: "center",
     width: "100%",
+    overflow: "hidden",
   },
 });
 

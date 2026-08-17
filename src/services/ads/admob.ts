@@ -18,6 +18,21 @@ function warn(message: string, error?: unknown) {
   }
 }
 
+export function isAdNoFillError(error: unknown): boolean {
+  const code = String(
+    (error as { code?: unknown } | null)?.code ?? "",
+  ).toLowerCase();
+  const message = String(
+    (error as { message?: unknown } | null)?.message ?? "",
+  ).toLowerCase();
+
+  return (
+    code.includes("no-fill") ||
+    code.includes("no_fill") ||
+    message.includes("no fill")
+  );
+}
+
 export function getGoogleMobileAdsModule(): Promise<GoogleMobileAdsModule | null> {
   if (Platform.OS === "web") {
     return Promise.resolve(null);
@@ -40,7 +55,7 @@ export function getBannerAdUnitId(testId: string): string | null {
 
   if (!productionBannerAdUnitId && !warnedAboutBannerId) {
     warnedAboutBannerId = true;
-    console.warn(
+    warn(
       "EXPO_PUBLIC_ADMOB_BANNER_ID is missing; banner ads are disabled.",
     );
   }
@@ -55,7 +70,7 @@ export function getInterstitialAdUnitId(testId: string): string | null {
 
   if (!productionInterstitialAdUnitId && !warnedAboutInterstitialId) {
     warnedAboutInterstitialId = true;
-    console.warn(
+    warn(
       "EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID is missing; interstitial ads are disabled.",
     );
   }

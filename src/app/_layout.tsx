@@ -7,6 +7,10 @@ import { AuthProvider, useAuth } from "../components/AuthProvider";
 import { runDevelopmentApiConnectivityCheck } from "../api/clientApi";
 import { initializeAdMob } from "../services/ads/admob";
 import { loadInterstitial } from "../services/ads/interstitial";
+import {
+  runDevelopmentAdPolicyChecks,
+  startActiveUsageTracking,
+} from "../services/ads/ad-session";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +61,11 @@ function Guard() {
 export default function RootLayout() {
   useEffect(() => {
     void runDevelopmentApiConnectivityCheck();
+  }, []);
+
+  useEffect(() => {
+    runDevelopmentAdPolicyChecks();
+    return startActiveUsageTracking();
   }, []);
 
   useEffect(() => {

@@ -15,6 +15,7 @@ import BestProductBadge from "../../../../assets/best-product-badg.svg";
 
 // NEW infinite hook
 import { useProductsByFlagInfinite } from "../../../hooks/useProduct";
+import ProductListBannerAd from "../../../components/ads/product-list-banner-ad";
 
 type Product = {
   ean: string;
@@ -475,6 +476,7 @@ export default function ExploreScreen() {
 
       {/* Chips */}
       <FlatList
+        style={styles.list}
         data={initialLoading ? skeletonData : data}
         keyExtractor={(item: any) => item.ean ?? item.id}
         numColumns={2}
@@ -512,6 +514,7 @@ export default function ExploreScreen() {
         
         }
       />
+      <ProductListBannerAd />
       <Modal visible={filterVisible} transparent animationType="slide">
   <View style={styles.modalBackdrop}>
     <View style={styles.modalSheet}>
@@ -768,6 +771,7 @@ const styles = StyleSheet.create({
   pillTextActive: { color: "#3F3B37" },
 
   listContent: { padding: 16, paddingBottom: 24 },
+  list: { flex: 1 },
   colWrap: { justifyContent: "space-between" },
 
   cardWrap: { width: "48%", marginBottom: 14 },

@@ -41,41 +41,17 @@ import ProductDetailLoader from "../../../../components/ProductDetailLoader";
 import NoProduct from "../../../../../assets/noProduct.svg";
 
 
-import { recordSuccessfulEanSearch } from "../../../../services/ads/interstitial";
+import {
+  maybeShowTimeInterstitial,
+  recordSuccessfulCameraScan,
+} from "../../../../services/ads/ad-session";
 
 import StarRating from "../../../../components/StarRating";
 
 import { useProductFeedback } from "../../../../hooks/useProductFeedback";
 import { useRecordScan } from "../../../../hooks/useScans";
 
-const recordedScanNavigations =
-  new Set<string>();
-
 const INITIAL_INGREDIENT_LIMIT = 15;
-
-function rememberScanNavigation(
-  scanNavigationId: string
-) {
-  recordedScanNavigations.add(
-    scanNavigationId
-  );
-
-  if (
-    recordedScanNavigations.size >
-    200
-  ) {
-    const oldestId =
-      recordedScanNavigations
-        .values()
-        .next().value;
-
-    if (oldestId) {
-      recordedScanNavigations.delete(
-        oldestId
-      );
-    }
-  }
-}
 
 function formatRating(
   value: number
@@ -174,17 +150,17 @@ function BeautyScoreBar({
     <View style={styles.beautyProgressContainer}>
       <View style={styles.beautyProgressTop}>
         <Text style={styles.beautyProgressTitle}>
-          Score BeautySafe
+          Score Composition
         </Text>
 
-        <Text
+        {/* <Text
           style={[
             styles.beautyProgressValue,
             { color },
           ]}
         >
           {Math.round(normalizedScore)}/100
-        </Text>
+        </Text> */}
       </View>
 
       <View style={styles.beautySegmentsRow}>
@@ -515,14 +491,12 @@ export default function ProductDetailsScreen() {
   const {
     ean,
     returnTo,
-    fromEanSearch,
     source,
     scanNavigationId,
   } =
     useLocalSearchParams<{
       ean?: string;
       returnTo?: string;
-      fromEanSearch?: string;
       source?: string;
       scanNavigationId?: string;
     }>();
@@ -551,7 +525,7 @@ export default function ProductDetailsScreen() {
       ? scanNavigationId
       : undefined;
 
-  const countedSearchRef =
+  const safeTransitionProductRef =
     useRef<
       string | null
     >(null);
@@ -661,47 +635,58 @@ export default function ProductDetailsScreen() {
       return;
     }
 
-    let isActive =
-      true;
-
     void refetch()
-      .then(
-        (result) => {
-          if (
-            isActive &&
-            fromEanSearch ===
-              "true" &&
-            result.isSuccess &&
-            result.data &&
-            countedSearchRef.current !==
-              eanStr
-          ) {
-            countedSearchRef.current =
-              eanStr;
-
-            recordSuccessfulEanSearch();
-          }
-        }
-      )
       .catch(
         () => undefined
       );
-
-    return () => {
-      isActive =
-        false;
-    };
   }, [
     eanStr,
-    fromEanSearch,
     refetch,
+  ]);
+
+  useEffect(() => {
+    if (
+      !eanStr ||
+      !productUid ||
+      sourceStr ===
+        "scan"
+    ) {
+      return;
+    }
+
+    const productTransitionKey =
+      `${eanStr}:${productUid}`;
+
+    if (
+      safeTransitionProductRef.current ===
+        productTransitionKey
+    ) {
+      return;
+    }
+
+    safeTransitionProductRef.current =
+      productTransitionKey;
+
+    void maybeShowTimeInterstitial(
+      "product-result"
+    ).catch((adError) => {
+      if (__DEV__) {
+        console.warn(
+          "[Ads] product result checkpoint failed",
+          adError
+        );
+      }
+    });
+  }, [
+    eanStr,
+    productUid,
+    sourceStr,
   ]);
 
   useEffect(() => {
     if (
       sourceStr !==
         "scan" ||
-      !token ||
       !productUid
     ) {
       return;
@@ -713,10 +698,7 @@ export default function ProductDetailsScreen() {
 
     if (
       recordedScanRef.current ===
-        navigationKey ||
-      recordedScanNavigations.has(
         navigationKey
-      )
     ) {
       return;
     }
@@ -724,33 +706,46 @@ export default function ProductDetailsScreen() {
     recordedScanRef.current =
       navigationKey;
 
-    rememberScanNavigation(
+    void recordSuccessfulCameraScan(
       navigationKey
-    );
+    )
+      .then(({ processed }) => {
+        if (!processed || !token) {
+          return;
+        }
 
-    recordScanMutation.mutate(
-      productUid,
-      {
-        onError:
-          (
-            scanError
-          ) => {
-            if (__DEV__) {
-              console.info(
-                "[scan] recording failed",
-                {
-                  status:
-                    (
-                      scanError as {
-                        status?: number;
-                      }
-                    )?.status,
+        recordScanMutation.mutate(
+          productUid,
+          {
+            onError:
+              (
+                scanError
+              ) => {
+                if (__DEV__) {
+                  console.info(
+                    "[scan] recording failed",
+                    {
+                      status:
+                        (
+                          scanError as {
+                            status?: number;
+                          }
+                        )?.status,
+                    }
+                  );
                 }
-              );
-            }
-          },
-      }
-    );
+              },
+          }
+        );
+      })
+      .catch((scanError) => {
+        if (__DEV__) {
+          console.warn(
+            "[Ads] successful camera scan could not be processed",
+            scanError
+          );
+        }
+      });
   }, [
     eanStr,
     productUid,
@@ -2631,7 +2626,7 @@ beautySegmentsRow: {
 
 beautySegment: {
   flex: 1,
-  height: 9,
+  height: 15,
   borderRadius: 3,
   backgroundColor: "#FFFFFF",
   borderWidth: 1,

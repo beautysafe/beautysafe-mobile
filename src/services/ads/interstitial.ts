@@ -2,25 +2,63 @@ import {
   getGoogleMobileAdsModule,
   getInterstitialAdUnitId,
   initializeAdMob,
+  isAdNoFillError,
 } from "./admob";
 import type { GoogleMobileAdsModule } from "./admob";
-
-export const SEARCHES_BEFORE_INTERSTITIAL = 2;
 
 type InterstitialAdInstance = ReturnType<
   GoogleMobileAdsModule["InterstitialAd"]["createForAdRequest"]
 >;
 
-let interstitial: InterstitialAdInstance | null = null;
-let loadPromise: Promise<void> | null = null;
-let isLoading = false;
-let isShowing = false;
-let successfulSearchCount = 0;
+const INTERSTITIAL_COOLDOWN_MS = 12_000;
+const LOAD_RETRY_DELAY_MS = 30_000;
 
-function warn(message: string, error?: unknown) {
-  if (__DEV__) {
-    console.warn(message, error ?? "");
+let interstitial: InterstitialAdInstance | null = null;
+let eventUnsubscribers: Array<() => void> = [];
+let loadPromise: Promise<void> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let isLoaded = false;
+let isLoading = false;
+let isShowingInterstitial = false;
+let lastInterstitialShownAt = 0;
+
+function logLoadError(error: unknown) {
+  if (!__DEV__) {
+    return;
   }
+
+  if (isAdNoFillError(error)) {
+    console.info("[Ads] interstitial no-fill");
+    return;
+  }
+
+  console.warn("[Ads] interstitial failed to load", error);
+}
+
+function clearRetryTimer() {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+}
+
+function releaseInterstitial() {
+  eventUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  eventUnsubscribers = [];
+  interstitial = null;
+  isLoaded = false;
+  isLoading = false;
+}
+
+function scheduleLoadRetry() {
+  if (retryTimer) {
+    return;
+  }
+
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void loadInterstitial();
+  }, LOAD_RETRY_DELAY_MS);
 }
 
 function createInterstitial(
@@ -30,29 +68,53 @@ function createInterstitial(
   try {
     const ad = adsModule.InterstitialAd.createForAdRequest(adUnitId);
 
-    ad.addAdEventListener(adsModule.AdEventType.LOADED, () => {
-      isLoading = false;
-    });
-    ad.addAdEventListener(adsModule.AdEventType.ERROR, (error) => {
-      isLoading = false;
-      isShowing = false;
-      warn("The interstitial ad failed to load.", error);
-    });
-    ad.addAdEventListener(adsModule.AdEventType.CLOSED, () => {
-      isLoading = false;
-      isShowing = false;
-      void loadInterstitial();
-    });
+    eventUnsubscribers = [
+      ad.addAdEventListener(adsModule.AdEventType.LOADED, () => {
+        if (interstitial !== ad) {
+          return;
+        }
+
+        clearRetryTimer();
+        isLoading = false;
+        isLoaded = true;
+
+        if (__DEV__) {
+          console.info("[Ads] interstitial loaded");
+        }
+      }),
+      ad.addAdEventListener(adsModule.AdEventType.ERROR, (error) => {
+        if (interstitial !== ad) {
+          return;
+        }
+
+        isShowingInterstitial = false;
+        logLoadError(error);
+        releaseInterstitial();
+        scheduleLoadRetry();
+      }),
+      ad.addAdEventListener(adsModule.AdEventType.CLOSED, () => {
+        if (interstitial !== ad) {
+          return;
+        }
+
+        isShowingInterstitial = false;
+        releaseInterstitial();
+        void loadInterstitial();
+      }),
+    ];
 
     return ad;
   } catch (error) {
-    warn("The interstitial ad could not be created.", error);
+    if (__DEV__) {
+      console.warn("[Ads] interstitial could not be created", error);
+    }
+
     return null;
   }
 }
 
 export function loadInterstitial(): Promise<void> {
-  if (interstitial?.loaded || isLoading || isShowing) {
+  if (isLoaded || isLoading || isShowingInterstitial) {
     return Promise.resolve();
   }
 
@@ -73,15 +135,18 @@ export function loadInterstitial(): Promise<void> {
       return;
     }
 
-    const adUnitId = getInterstitialAdUnitId(adsModule.TestIds.INTERSTITIAL);
+    const adUnitId = getInterstitialAdUnitId(
+      adsModule.TestIds.INTERSTITIAL,
+    );
 
     if (!adUnitId) {
       return;
     }
 
+    clearRetryTimer();
     interstitial ??= createInterstitial(adsModule, adUnitId);
 
-    if (!interstitial || interstitial.loaded || isLoading || isShowing) {
+    if (!interstitial || isLoaded || isLoading || isShowingInterstitial) {
       return;
     }
 
@@ -90,7 +155,13 @@ export function loadInterstitial(): Promise<void> {
       interstitial.load();
     } catch (error) {
       isLoading = false;
-      warn("The interstitial ad could not be loaded.", error);
+
+      if (__DEV__) {
+        console.warn("[Ads] interstitial could not be loaded", error);
+      }
+
+      releaseInterstitial();
+      scheduleLoadRetry();
     }
   })().finally(() => {
     loadPromise = null;
@@ -99,30 +170,70 @@ export function loadInterstitial(): Promise<void> {
   return loadPromise;
 }
 
-export async function showInterstitial(): Promise<boolean> {
-  if (!interstitial?.loaded || isShowing) {
+export async function showInterstitialIfReady(
+  reason: string,
+): Promise<boolean> {
+  const isInsideCooldown =
+    Date.now() - lastInterstitialShownAt < INTERSTITIAL_COOLDOWN_MS;
+
+  if (isShowingInterstitial || isInsideCooldown) {
+    if (__DEV__) {
+      console.info(
+        `[Ads] interstitial skipped: ${
+          isShowingInterstitial ? "already-showing" : "cooldown"
+        }`,
+      );
+    }
+
+    return false;
+  }
+
+  if (!interstitial || !isLoaded || !interstitial.loaded) {
+    if (__DEV__) {
+      console.info(`[Ads] interstitial not ready: ${reason}`);
+    }
+
     void loadInterstitial();
     return false;
   }
 
   try {
-    isShowing = true;
+    isShowingInterstitial = true;
+    isLoaded = false;
+    lastInterstitialShownAt = Date.now();
     await interstitial.show();
+
+    if (__DEV__) {
+      console.info(`[Ads] interstitial shown: ${reason}`);
+    }
+
     return true;
   } catch (error) {
-    isShowing = false;
-    warn("The interstitial ad could not be shown.", error);
+    isShowingInterstitial = false;
+
+    if (__DEV__) {
+      console.warn("[Ads] interstitial could not be shown", error);
+    }
+
+    releaseInterstitial();
+    scheduleLoadRetry();
     return false;
   }
 }
 
-export function recordSuccessfulEanSearch() {
-  successfulSearchCount += 1;
+/** Backwards-compatible low-level API. Prefer an ad-session safe transition. */
+export function showInterstitial(): Promise<boolean> {
+  return showInterstitialIfReady("legacy-call");
+}
 
-  if (successfulSearchCount < SEARCHES_BEFORE_INTERSTITIAL) {
-    return;
-  }
+/**
+ * Backwards compatibility for older callers. Typed EAN lookups no longer
+ * change the camera-scan counter; they only provide a safe time-ad checkpoint.
+ */
+export async function recordSuccessfulEanSearch(): Promise<boolean> {
+  const { recordSuccessfulEanSearch: recordSafeTransition } = await import(
+    "./ad-session"
+  );
 
-  successfulSearchCount = 0;
-  void showInterstitial();
+  return recordSafeTransition();
 }

@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import ArrowLeftIcon from "../../../../../../assets/icons/arrow-left.svg";
+import ProductListBannerAd from "../../../../../components/ads/product-list-banner-ad";
 import { useProductListProductsInfinite } from "../../../../../hooks/useGroups";
 import type { Product } from "../../../../../types/product";
 
@@ -417,6 +418,7 @@ export default function ProductListProductsScreen() {
       ) : null} */}
 
       <FlatList
+        style={styles.list}
         data={products}
         keyExtractor={(
           item,
@@ -492,6 +494,7 @@ export default function ProductListProductsScreen() {
           ) : null
         }
       />
+      <ProductListBannerAd />
     </View>
   );
 }
@@ -559,6 +562,10 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+
+  list: {
+    flex: 1,
   },
 
   colWrap: {

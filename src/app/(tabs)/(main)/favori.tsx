@@ -8,6 +8,7 @@ import CloseIcon from  "../../../../assets/icons/close.svg"
 import NoFavorite from "../../../../assets/noFavorite.svg";
 import { useFavorites} from "../../../hooks/useFavorites";
 import { FavoriteProduct } from "../../../types/user";
+import ProductListBannerAd from "../../../components/ads/product-list-banner-ad";
 
 function FavoritesEmpty() {
   return (
@@ -80,6 +81,7 @@ export default function FavoritesScreen() {
         </View>
       ) : (
         <FlatList
+          style={styles.list}
           data={items}
           keyExtractor={(it) => String(it.uid)}
           numColumns={2}
@@ -133,12 +135,14 @@ export default function FavoritesScreen() {
           }}
         />
       )}
+      <ProductListBannerAd />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
 page: { flex: 1, backgroundColor: "#FBF8F4", paddingTop: 32 },
+list: { flex: 1 },
 
 topBar: {
   paddingHorizontal: 16,
