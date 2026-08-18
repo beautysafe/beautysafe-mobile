@@ -8,6 +8,8 @@ import {
 import { showInterstitialIfReady } from "./interstitial";
 
 export const AD_SCAN_COUNT_STORAGE_KEY = "@beautysafe/ad_scan_count";
+export const AD_BANNER_DETAIL_OPEN_COUNT_STORAGE_KEY =
+  "@beautysafe/ad_banner_detail_open_count";
 
 const PRODUCTION_ACTIVE_USAGE_THRESHOLD_MS = 5 * 60 * 1000;
 const DEFAULT_DEVELOPMENT_ACTIVE_USAGE_THRESHOLD_MS = 30_000;
@@ -36,9 +38,17 @@ type SuccessfulCameraScanResult = {
   shown: boolean;
 };
 
+type BannerDetailOpenResult = {
+  openCount: number;
+  eligible: boolean;
+  shown: boolean;
+};
+
 const processedScanEventIds = new Set<string>();
 let cachedScanCount: number | null = null;
 let scanOperationQueue: Promise<void> = Promise.resolve();
+let cachedBannerDetailOpenCount: number | null = null;
+let bannerDetailOpenOperationQueue: Promise<void> = Promise.resolve();
 
 let appState: AppStateStatus = AppState.currentState;
 let appStateSubscription: NativeEventSubscription | null = null;
@@ -51,6 +61,15 @@ let timeAdEligible = false;
 function logStorageError(operation: string, error: unknown) {
   if (__DEV__) {
     console.warn(`[Ads] could not ${operation} scan count`, error);
+  }
+}
+
+function logBannerStorageError(operation: string, error: unknown) {
+  if (__DEV__) {
+    console.warn(
+      `[Ads] could not ${operation} banner detail open count`,
+      error,
+    );
   }
 }
 
@@ -90,6 +109,36 @@ async function persistScanCount(scanCount: number): Promise<void> {
   }
 }
 
+async function readBannerDetailOpenCount(): Promise<number> {
+  if (cachedBannerDetailOpenCount !== null) {
+    return cachedBannerDetailOpenCount;
+  }
+
+  try {
+    cachedBannerDetailOpenCount = parseScanCount(
+      await AsyncStorage.getItem(AD_BANNER_DETAIL_OPEN_COUNT_STORAGE_KEY),
+    );
+  } catch (error) {
+    cachedBannerDetailOpenCount = 0;
+    logBannerStorageError("read", error);
+  }
+
+  return cachedBannerDetailOpenCount;
+}
+
+async function persistBannerDetailOpenCount(openCount: number): Promise<void> {
+  cachedBannerDetailOpenCount = openCount;
+
+  try {
+    await AsyncStorage.setItem(
+      AD_BANNER_DETAIL_OPEN_COUNT_STORAGE_KEY,
+      String(openCount),
+    );
+  } catch (error) {
+    logBannerStorageError("persist", error);
+  }
+}
+
 function rememberScanEvent(eventId: string) {
   processedScanEventIds.add(eventId);
 
@@ -106,6 +155,10 @@ function rememberScanEvent(eventId: string) {
 
 export function isSuccessfulCameraScanAdEligible(scanCount: number): boolean {
   return scanCount === 5 || scanCount >= 7;
+}
+
+export function isBannerDetailOpenAdEligible(openCount: number): boolean {
+  return openCount > 0 && openCount % 2 === 0;
 }
 
 function clearEligibilityTimer() {
@@ -248,20 +301,23 @@ export function startActiveUsageTracking(): () => void {
 
 async function maybeShowEligibleInterstitial(
   reason: string,
-  scanEligible: boolean,
+  eventEligible: boolean,
+  waitForClose = false,
 ): Promise<boolean> {
   const timeEligibleAtTransition = timeAdEligible;
 
-  if (!scanEligible && !timeEligibleAtTransition) {
+  if (!eventEligible && !timeEligibleAtTransition) {
     return false;
   }
 
-  const combinedReason = scanEligible
+  const combinedReason = eventEligible
     ? timeEligibleAtTransition
       ? `${reason}+active-usage`
       : reason
     : "active-usage";
-  const shown = await showInterstitialIfReady(combinedReason);
+  const shown = await showInterstitialIfReady(combinedReason, {
+    waitForClose,
+  });
 
   if (shown && timeEligibleAtTransition) {
     consumeTimeAdEligibility();
@@ -282,6 +338,49 @@ export function maybeShowTimeInterstitial(
  */
 export function recordSuccessfulEanSearch(): Promise<boolean> {
   return maybeShowTimeInterstitial("successful-ean-search");
+}
+
+export function recordBannerDetailOpenAndMaybeShowAd(): Promise<BannerDetailOpenResult> {
+  const operation = bannerDetailOpenOperationQueue.then(async () => {
+    const previousCount = await readBannerDetailOpenCount();
+    const openCount = previousCount + 1;
+    await persistBannerDetailOpenCount(openCount);
+
+    if (__DEV__) {
+      console.info(`[Ads] Banner detail open count: ${openCount}`);
+    }
+
+    const eligible = isBannerDetailOpenAdEligible(openCount);
+
+    if (!eligible) {
+      return { openCount, eligible, shown: false };
+    }
+
+    if (__DEV__) {
+      console.info("[Ads] Banner detail interstitial eligible");
+    }
+
+    const shown = await maybeShowEligibleInterstitial(
+      `banner-detail-${openCount}`,
+      true,
+      true,
+    );
+
+    if (!shown && __DEV__) {
+      console.info(
+        "[Ads] Interstitial unavailable, continuing navigation",
+      );
+    }
+
+    return { openCount, eligible, shown };
+  });
+
+  bannerDetailOpenOperationQueue = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return operation;
 }
 
 export function recordSuccessfulCameraScan(
@@ -374,4 +473,21 @@ export function runDevelopmentAdPolicyChecks() {
   }
 
   console.info("[Ads] scan policy check passed for scans 1-10");
+
+  const bannerFailures: number[] = [];
+
+  for (let openCount = 1; openCount <= 8; openCount += 1) {
+    if (isBannerDetailOpenAdEligible(openCount) !== (openCount % 2 === 0)) {
+      bannerFailures.push(openCount);
+    }
+  }
+
+  if (bannerFailures.length > 0) {
+    console.warn(
+      `[Ads] banner detail policy check failed at: ${bannerFailures.join(", ")}`,
+    );
+    return;
+  }
+
+  console.info("[Ads] banner detail policy check passed for opens 1-8");
 }

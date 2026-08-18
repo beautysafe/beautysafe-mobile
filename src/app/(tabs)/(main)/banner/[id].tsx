@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import ProductListBannerAd from "../../../../components/ads/product-list-banner-ad";
 import { useBannerById } from "../../../../hooks/useBanner";
 
 type Step = "title" | "text" | "productsTitle" | "products";
@@ -358,8 +359,12 @@ function FadeInView({
 export default function BannerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const bannerId = Array.isArray(id) ? id[0] : id;
+  const currentReturnPath = `/(tabs)/(main)/banner/${encodeURIComponent(
+    bannerId,
+  )}`;
 
-  const { data: banner, isLoading } = useBannerById(id);
+  const { data: banner, isLoading } = useBannerById(bannerId);
 
   const [step, setStep] = useState<Step>("title");
 
@@ -379,7 +384,8 @@ export default function BannerDetailsScreen() {
   const bannerImageUri = cleanUrl(banner.image);
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+    <View style={styles.screen}>
+      <ScrollView style={styles.page} contentContainerStyle={styles.content}>
       {bannerImageUri ? (
         <Image
           source={{ uri: bannerImageUri }}
@@ -440,8 +446,11 @@ export default function BannerDetailsScreen() {
                 style={styles.productCard}
                 onPress={() =>
                   router.push({
-                    pathname: "/product/[ean]",
-                    params: { ean: product.ean },
+                    pathname: "/(tabs)/(main)/product/[ean]",
+                    params: {
+                      ean: product.ean,
+                      returnTo: currentReturnPath,
+                    },
                   })
                 }
               >
@@ -463,11 +472,18 @@ export default function BannerDetailsScreen() {
             </FadeInView>
           );
         })}
-    </ScrollView>
+      </ScrollView>
+      <ProductListBannerAd />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#FBF8F4",
+  },
+
   page: {
     flex: 1,
     backgroundColor: "#FBF8F4",

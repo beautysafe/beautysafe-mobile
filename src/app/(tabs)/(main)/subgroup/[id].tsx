@@ -15,6 +15,7 @@ import {
 } from "expo-router";
 
 import ArrowLeftIcon from "../../../../../assets/icons/arrow-left.svg";
+import ProductListBannerAd from "../../../../components/ads/product-list-banner-ad";
 import { useSubGroupById } from "../../../../hooks/useGroups";
 
 const FALLBACK_IMAGE = require("../../../../../assets/img/skin.png");
@@ -42,9 +43,19 @@ function goBack(
     ...details,
   });
 
-  // Prefer the explicit previous page.
-  // In our Tabs navigator, router.back() can resolve to Home.
+  // Prefer a stack dismissal, then consume the navigator's real history.
+  // The explicit route remains the no-history fallback.
   if (returnTo) {
+    if (router.canDismiss()) {
+      router.dismissTo(returnTo as never);
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
     router.replace(returnTo as never);
     return;
   }
@@ -226,11 +237,12 @@ export default function SubGroupChoiceScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.page}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.topBar}>
         <Pressable
           onPress={() =>
@@ -304,11 +316,18 @@ export default function SubGroupChoiceScreen() {
         disabled={!firstProductList}
         onPress={openFirstProductList}
       />
-    </ScrollView>
+      </ScrollView>
+      <ProductListBannerAd />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#FBF8F4",
+  },
+
   page: {
     flex: 1,
     backgroundColor: "#FBF8F4",

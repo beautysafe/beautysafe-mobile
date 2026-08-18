@@ -1,6 +1,16 @@
-import type { ComponentType } from "react";
+import {
+  useEffect,
+  useRef,
+  type ComponentType,
+} from "react";
 import { Tabs, useRouter } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -25,6 +35,14 @@ type TabIconProps = {
   Icon: ComponentType<SvgProps>;
 };
 
+const PAGE_TRANSITION_SPEC = {
+  animation: "timing" as const,
+  config: {
+    duration: 280,
+    easing: Easing.out(Easing.cubic),
+  },
+};
+
 function TabIcon({
   focused,
   ActiveIcon,
@@ -44,12 +62,98 @@ export default function TabsLayout() {
   const { token } = useAuth();
 
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } =
+    useWindowDimensions();
+  const skipPageTransitionRef =
+    useRef(false);
+  const skipTransitionTimerRef =
+    useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
+
+  const markBottomTabSwitch = () => {
+    skipPageTransitionRef.current =
+      true;
+
+    if (
+      skipTransitionTimerRef.current
+    ) {
+      clearTimeout(
+        skipTransitionTimerRef.current
+      );
+    }
+
+    skipTransitionTimerRef.current =
+      setTimeout(() => {
+        skipPageTransitionRef.current =
+          false;
+      }, 350);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (
+        skipTransitionTimerRef.current
+      ) {
+        clearTimeout(
+          skipTransitionTimerRef.current
+        );
+      }
+    };
+  }, []);
 
   return (
     <Tabs
+      backBehavior="history"
+      screenListeners={{
+        transitionEnd: () => {
+          skipPageTransitionRef.current =
+            false;
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
+        sceneStyle: styles.scene,
+        transitionSpec:
+          PAGE_TRANSITION_SPEC,
+        sceneStyleInterpolator: ({
+          current,
+        }: {
+          current: {
+            progress: Animated.Value;
+          };
+        }) => {
+          if (
+            skipPageTransitionRef.current
+          ) {
+            return {
+              sceneStyle: {},
+            };
+          }
+
+          return {
+            sceneStyle: {
+              transform: [
+                {
+                  translateX:
+                    current.progress.interpolate(
+                      {
+                        inputRange: [
+                          -1, 0, 1,
+                        ],
+                        outputRange: [
+                          -screenWidth,
+                          0,
+                          screenWidth,
+                        ],
+                      }
+                    ),
+                },
+              ],
+            },
+          };
+        },
 
         tabBarStyle: [
           styles.tabBar,
@@ -74,6 +178,10 @@ export default function TabsLayout() {
             />
           ),
         }}
+        listeners={{
+          tabPress:
+            markBottomTabSwitch,
+        }}
       />
 
       {/* EXPLORE */}
@@ -90,6 +198,7 @@ export default function TabsLayout() {
         }}
         listeners={{
           tabPress: (e) => {
+            markBottomTabSwitch();
             e.preventDefault();
 
             router.replace(
@@ -113,6 +222,7 @@ export default function TabsLayout() {
         }}
         listeners={{
           tabPress: (e) => {
+            markBottomTabSwitch();
             if (!token) {
               e.preventDefault();
 
@@ -140,6 +250,7 @@ export default function TabsLayout() {
         }}
         listeners={{
           tabPress: (e) => {
+            markBottomTabSwitch();
             if (!token) {
               e.preventDefault();
 
@@ -180,11 +291,6 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="(main)/product/[ean]"
-        options={{ href: null }}
-      />
-
-      <Tabs.Screen
         name="(main)/profile/edit"
         options={{ href: null }}
       />
@@ -196,6 +302,11 @@ export default function TabsLayout() {
 
       <Tabs.Screen
         name="(main)/scan-history"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="(main)/product/[ean]"
         options={{ href: null }}
       />
 
@@ -238,6 +349,10 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  scene: {
+    backgroundColor: "#FBF8F4",
+  },
+
   tabBar: {
     backgroundColor: "#FFFFFF",
 

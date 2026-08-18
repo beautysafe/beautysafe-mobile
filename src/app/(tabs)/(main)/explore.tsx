@@ -205,6 +205,22 @@ export default function ExploreScreen() {
   // params when coming from subcategory page:
   const params = useLocalSearchParams<{ flagId?: string; title?: string; mainId?: string }>();
   const selectedFlagId = params.flagId ? Number(params.flagId) : null;
+  const currentReturnPath = useMemo(() => {
+    const queryParts = [
+      ["flagId", params.flagId],
+      ["title", params.title],
+      ["mainId", params.mainId],
+    ]
+      .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+      .map(
+        ([key, value]) =>
+          `${key}=${encodeURIComponent(value)}`,
+      );
+
+    return `/(tabs)/(main)/explore${
+      queryParts.length ? `?${queryParts.join("&")}` : ""
+    }`;
+  }, [params.flagId, params.mainId, params.title]);
 
   // header title
   const headerTitle = params.title ? String(params.title) : "Meilleurs produits";
@@ -409,7 +425,18 @@ export default function ExploreScreen() {
     const titleColor = isSponsored ? "#D87355" : isTrend ? "#046E7C" : "#3F3B37";
   
     return (
-      <Pressable onPress={() => router.push({ pathname: "/product/[ean]", params: { ean: item.ean } })} style={styles.cardWrap}>
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/(main)/product/[ean]",
+            params: {
+              ean: item.ean,
+              returnTo: currentReturnPath,
+            },
+          })
+        }
+        style={styles.cardWrap}
+      >
         <View style={[styles.card, isSponsored && { borderColor, borderWidth: 1.5 }]}>
           <View style={styles.imageWrap}>
             {img ? <Image source={{ uri: img }} style={styles.image} contentFit="cover" /> : <View style={[styles.image, { backgroundColor: "rgba(0,0,0,0.06)" }]} />}

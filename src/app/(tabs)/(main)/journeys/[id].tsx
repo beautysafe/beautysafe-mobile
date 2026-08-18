@@ -33,6 +33,7 @@ import {
 } from "expo-router";
 
 import ArrowLeftIcon from "../../../../../assets/icons/arrow-left.svg";
+import ProductListBannerAd from "../../../../components/ads/product-list-banner-ad";
 
 import {
   useJourneyById,
@@ -138,13 +139,22 @@ function goBack(
     }
   );
 
-  /*
-   * Prefer the explicit previous page.
-   *
-   * With the Tabs navigator router.back()
-   * may otherwise return to Home.
-   */
+  /* Prefer a stack dismissal, then consume the navigator's real history. */
   if (returnTo) {
+    if (router.canDismiss()) {
+      router.dismissTo(
+        returnTo as never
+      );
+
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+
+      return;
+    }
+
     router.replace(
       returnTo as never
     );
@@ -1236,15 +1246,16 @@ export default function JourneyDetailScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.page}
-      contentContainerStyle={
-        styles.content
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
-    >
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+      >
       {/* Header */}
       <View
         style={
@@ -2221,12 +2232,20 @@ export default function JourneyDetailScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+      <ProductListBannerAd />
+    </View>
   );
 }
 
 const styles =
   StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor:
+        "#FBF8F4",
+    },
+
     page: {
       flex: 1,
       backgroundColor:

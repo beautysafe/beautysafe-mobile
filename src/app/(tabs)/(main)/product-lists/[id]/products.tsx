@@ -34,7 +34,13 @@ function getPaginationStorageKey(productListId: string) {
   return `beautysafe:product-list:${productListId}:next-page`;
 }
 
-function ProductCard({ item }: { item: Product }) {
+function ProductCard({
+  item,
+  returnTo,
+}: {
+  item: Product;
+  returnTo: string;
+}) {
   const router = useRouter();
   const img = getImage(item);
 
@@ -46,9 +52,10 @@ function ProductCard({ item }: { item: Product }) {
         }
 
         router.push({
-          pathname: "/product/[ean]",
+          pathname: "/(tabs)/(main)/product/[ean]",
           params: {
             ean: item.ean,
+            returnTo,
           },
         });
       }}
@@ -103,6 +110,14 @@ export default function ProductListProductsScreen() {
     typeof returnTo === "string"
       ? returnTo
       : undefined;
+
+  const currentReturnPath = `/(tabs)/(main)/product-lists/${encodeURIComponent(
+    productListId,
+  )}/products${
+    returnToPath
+      ? `?returnTo=${encodeURIComponent(returnToPath)}`
+      : ""
+  }`;
 
   /**
    * null means we are still restoring
@@ -297,11 +312,20 @@ export default function ProductListProductsScreen() {
      */
     await saveNextStartPage();
 
-    /**
-     * Keep the navigation fix that is
-     * already working in your project.
-     */
+    /** Prefer a stack dismissal, then consume the navigator's real history. */
     if (returnToPath) {
+      if (router.canDismiss()) {
+        router.dismissTo(
+          returnToPath as never
+        );
+        return;
+      }
+
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+
       router.replace(
         returnToPath as never
       );
@@ -440,7 +464,10 @@ export default function ProductListProductsScreen() {
           false
         }
         renderItem={({ item }) => (
-          <ProductCard item={item} />
+          <ProductCard
+            item={item}
+            returnTo={currentReturnPath}
+          />
         )}
         onEndReached={
           handleEndReached

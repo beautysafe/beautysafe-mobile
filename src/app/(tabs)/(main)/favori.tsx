@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo  } from "react";
-import { router, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../../components/AuthProvider";
 import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
@@ -48,7 +48,15 @@ export default function FavoritesScreen() {
   }, [favorites]);
 
   const openProduct = (p: FavoriteProduct) => {
-    if (p.ean) router.push({ pathname: "/product/[ean]", params: { ean: p.ean } });
+    if (p.ean) {
+      router.push({
+        pathname: "/(tabs)/(main)/product/[ean]",
+        params: {
+          ean: p.ean,
+          returnTo: "/(tabs)/(main)/favori",
+        },
+      });
+    }
   };
 
   useEffect(() => {

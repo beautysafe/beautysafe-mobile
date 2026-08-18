@@ -29,8 +29,12 @@ export default function ManualSearchScreen() {
 
   const goToProduct = (eanCode: string) => {
     router.push({
-      pathname: "/product/[ean]",
-      params: { ean: eanCode, fromEanSearch: "true" },
+      pathname: "/(tabs)/(main)/product/[ean]",
+      params: {
+        ean: eanCode,
+        fromEanSearch: "true",
+        returnTo: "/(tabs)/(main)/manual-search",
+      },
     });
   };
 

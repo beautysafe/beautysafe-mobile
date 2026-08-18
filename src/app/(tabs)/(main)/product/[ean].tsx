@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,6 +9,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Modal,
   Pressable,
   ScrollView,
@@ -18,6 +20,7 @@ import {
 } from "react-native";
 
 import {
+  useFocusEffect,
   useLocalSearchParams,
   usePathname,
   useRouter,
@@ -1060,11 +1063,7 @@ export default function ProductDetailsScreen() {
       );
     };
 
-  /*
-   * Keep the same returnTo strategy we fixed
-   * on the other nested screens.
-   */
-  const handleBack =
+  const handleBack = useCallback(
     () => {
       if (__DEV__) {
         console.debug(
@@ -1080,6 +1079,9 @@ export default function ProductDetailsScreen() {
             canGoBack:
               router.canGoBack(),
 
+            canDismiss:
+              router.canDismiss(),
+
             returnTo:
               returnToPath,
           }
@@ -1087,6 +1089,25 @@ export default function ProductDetailsScreen() {
       }
 
       if (returnToPath) {
+        if (router.canDismiss()) {
+          router.dismissTo(
+            returnToPath as never
+          );
+
+          return;
+        }
+
+        /*
+         * These detail routes currently live in the Tabs navigator.
+         * With backBehavior="history", a real back removes Product
+         * from tab history and reveals the exact screen that pushed it.
+         */
+        if (router.canGoBack()) {
+          router.back();
+
+          return;
+        }
+
         router.replace(
           returnToPath as never
         );
@@ -1105,7 +1126,30 @@ export default function ProductDetailsScreen() {
       router.replace(
         "/(tabs)/(main)"
       );
-    };
+    }, [
+      ean,
+      pathname,
+      returnTo,
+      returnToPath,
+      router,
+    ]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription =
+        BackHandler.addEventListener(
+          "hardwareBackPress",
+          () => {
+            handleBack();
+            return true;
+          }
+        );
+
+      return () =>
+        subscription.remove();
+    }, [handleBack])
+  );
 
   if (isLoading) {
     return (

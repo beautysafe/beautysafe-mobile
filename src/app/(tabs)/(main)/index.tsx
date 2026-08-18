@@ -38,6 +38,7 @@ import type { Banner } from "../../../types/product";
 import type { FavoriteProduct } from "../../../types/user";
 import ScanHistoryCard from "../../../components/ScanHistoryCard";
 import { useMyScans, useMyScanStats } from "../../../hooks/useScans";
+import { recordBannerDetailOpenAndMaybeShowAd } from "../../../services/ads/ad-session";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -98,6 +99,10 @@ export default function HomeScreen() {
     useState(0);
 
   const inputRef = useRef<TextInput>(null);
+  const bannerNavigationPendingRef = useRef(false);
+  const bannerNavigationGuardTimerRef = useRef<
+    ReturnType<typeof setTimeout> | null
+  >(null);
   const scanLineAnim = useRef(
     new Animated.Value(0),
   ).current;
@@ -205,9 +210,10 @@ export default function HomeScreen() {
     }
 
     router.push({
-      pathname: "/product/[ean]",
+      pathname: "/(tabs)/(main)/product/[ean]",
       params: {
         ean: eanCode,
+        returnTo: "/(tabs)/(main)",
         ...(fromEanSearch ? { fromEanSearch: "true" } : {}),
         ...(source
           ? {
@@ -264,6 +270,14 @@ export default function HomeScreen() {
         openExternalUrl(WHATSAPP_URL),
     },
   ];
+
+  useEffect(() => {
+    return () => {
+      if (bannerNavigationGuardTimerRef.current) {
+        clearTimeout(bannerNavigationGuardTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!showScanner) {
@@ -366,6 +380,45 @@ export default function HomeScreen() {
     openProductDetail(code, true, "scan");
   };
 
+  const handleBannerPress = async (banner: Banner) => {
+    if (bannerNavigationPendingRef.current) {
+      if (__DEV__) {
+        console.info("[Ads] duplicate banner press ignored");
+      }
+
+      return;
+    }
+
+    bannerNavigationPendingRef.current = true;
+
+    try {
+      await recordBannerDetailOpenAndMaybeShowAd();
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(
+          "[Ads] banner detail ad checkpoint failed; continuing navigation",
+          error,
+        );
+      }
+    }
+
+    try {
+      router.push({
+        pathname: "/banner/[id]",
+        params: { id: String(banner.id) },
+      });
+    } finally {
+      if (bannerNavigationGuardTimerRef.current) {
+        clearTimeout(bannerNavigationGuardTimerRef.current);
+      }
+
+      bannerNavigationGuardTimerRef.current = setTimeout(() => {
+        bannerNavigationPendingRef.current = false;
+        bannerNavigationGuardTimerRef.current = null;
+      }, 750);
+    }
+  };
+
 const renderBannerCard = ({ item }: { item: Banner }) => {
   const bannerImageSource = item.image
     ? { uri: item.image }
@@ -374,12 +427,7 @@ const renderBannerCard = ({ item }: { item: Banner }) => {
   return (
     <Pressable
       style={styles.bannerSlide}
-      onPress={() =>
-        router.push({
-          pathname: "/banner/[id]",
-          params: { id: String(item.id) },
-        })
-      }
+      onPress={() => void handleBannerPress(item)}
     >
       <View style={styles.bannerBackground}>
         <Image
@@ -1342,8 +1390,11 @@ const renderBannerCard = ({ item }: { item: Banner }) => {
                   compact
                   onPress={() =>
                     router.push({
-                      pathname: "/product/[ean]",
-                      params: { ean: scan.product.ean },
+                      pathname: "/(tabs)/(main)/product/[ean]",
+                      params: {
+                        ean: scan.product.ean,
+                        returnTo: "/(tabs)/(main)",
+                      },
                     })
                   }
                 />

@@ -132,8 +132,11 @@ export default function ScanHistoryScreen() {
             scan={item}
             onPress={() =>
               router.push({
-                pathname: "/product/[ean]",
-                params: { ean: item.product.ean },
+                pathname: "/(tabs)/(main)/product/[ean]",
+                params: {
+                  ean: item.product.ean,
+                  returnTo: "/(tabs)/(main)/scan-history",
+                },
               })
             }
           />

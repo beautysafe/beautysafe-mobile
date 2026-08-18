@@ -12,6 +12,11 @@ type InterstitialAdInstance = ReturnType<
 
 const INTERSTITIAL_COOLDOWN_MS = 12_000;
 const LOAD_RETRY_DELAY_MS = 30_000;
+const PRESENTATION_COMPLETION_TIMEOUT_MS = 60_000;
+
+type ShowInterstitialOptions = {
+  waitForClose?: boolean;
+};
 
 let interstitial: InterstitialAdInstance | null = null;
 let eventUnsubscribers: Array<() => void> = [];
@@ -21,6 +26,9 @@ let isLoaded = false;
 let isLoading = false;
 let isShowingInterstitial = false;
 let lastInterstitialShownAt = 0;
+let presentationCompletionPromise: Promise<void> | null = null;
+let resolvePresentationCompletion: (() => void) | null = null;
+let presentationCompletionTimer: ReturnType<typeof setTimeout> | null = null;
 
 function logLoadError(error: unknown) {
   if (!__DEV__) {
@@ -42,7 +50,37 @@ function clearRetryTimer() {
   }
 }
 
+function finishPresentation() {
+  if (presentationCompletionTimer) {
+    clearTimeout(presentationCompletionTimer);
+    presentationCompletionTimer = null;
+  }
+
+  const resolve = resolvePresentationCompletion;
+  resolvePresentationCompletion = null;
+  presentationCompletionPromise = null;
+  resolve?.();
+}
+
+function beginPresentation(): Promise<void> {
+  const completion = new Promise<void>((resolve) => {
+    resolvePresentationCompletion = resolve;
+  });
+
+  presentationCompletionPromise = completion;
+  presentationCompletionTimer = setTimeout(() => {
+    if (__DEV__) {
+      console.info("[Ads] interstitial close wait timed out");
+    }
+
+    finishPresentation();
+  }, PRESENTATION_COMPLETION_TIMEOUT_MS);
+
+  return completion;
+}
+
 function releaseInterstitial() {
+  finishPresentation();
   eventUnsubscribers.forEach((unsubscribe) => unsubscribe());
   eventUnsubscribers = [];
   interstitial = null;
@@ -172,17 +210,26 @@ export function loadInterstitial(): Promise<void> {
 
 export async function showInterstitialIfReady(
   reason: string,
+  options: ShowInterstitialOptions = {},
 ): Promise<boolean> {
   const isInsideCooldown =
     Date.now() - lastInterstitialShownAt < INTERSTITIAL_COOLDOWN_MS;
 
-  if (isShowingInterstitial || isInsideCooldown) {
+  if (isShowingInterstitial) {
     if (__DEV__) {
-      console.info(
-        `[Ads] interstitial skipped: ${
-          isShowingInterstitial ? "already-showing" : "cooldown"
-        }`,
-      );
+      console.info("[Ads] interstitial skipped: already-showing");
+    }
+
+    if (options.waitForClose && presentationCompletionPromise) {
+      await presentationCompletionPromise;
+    }
+
+    return false;
+  }
+
+  if (isInsideCooldown) {
+    if (__DEV__) {
+      console.info("[Ads] interstitial skipped: cooldown");
     }
 
     return false;
@@ -197,14 +244,21 @@ export async function showInterstitialIfReady(
     return false;
   }
 
+  const activeInterstitial = interstitial;
+  const presentationCompletion = beginPresentation();
+
   try {
     isShowingInterstitial = true;
     isLoaded = false;
     lastInterstitialShownAt = Date.now();
-    await interstitial.show();
+    await activeInterstitial.show();
 
     if (__DEV__) {
       console.info(`[Ads] interstitial shown: ${reason}`);
+    }
+
+    if (options.waitForClose) {
+      await presentationCompletion;
     }
 
     return true;

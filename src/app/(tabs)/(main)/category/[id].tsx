@@ -5,15 +5,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 
 import ArrowLeftIcon from "../../../../../assets/icons/arrow-left.svg";
+import ProductListBannerAd from "../../../../components/ads/product-list-banner-ad";
 import { useGroupById, useGroupSubGroups } from "../../../../hooks/useGroups";
 
 const FALLBACK_GROUP_IMAGE = require("../../../../../assets/img/skin.png");
+const CATEGORY_HORIZONTAL_PADDING = 16;
+const SUBGROUP_COLUMN_GAP = 14;
 
 function imageSource(uri?: string | null) {
   return uri ? { uri } : FALLBACK_GROUP_IMAGE;
@@ -33,7 +37,17 @@ function goBack(router: ReturnType<typeof useRouter>, returnTo?: string, details
   });
 
   if (returnTo) {
-    router.push(returnTo as any);
+    if (router.canDismiss()) {
+      router.dismissTo(returnTo as never);
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace(returnTo as never);
     return;
   }
 
@@ -42,11 +56,12 @@ function goBack(router: ReturnType<typeof useRouter>, returnTo?: string, details
     return;
   }
 
-  router.push("/(tabs)/(main)");
+  router.replace("/(tabs)/(main)");
 }
 
 export default function CategoryDetailScreen() {
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
   const pathname = usePathname();
   const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const returnToPath = typeof returnTo === "string" ? returnTo : undefined;
@@ -67,6 +82,10 @@ export default function CategoryDetailScreen() {
     groupQuery.isError ||
     (subgroupsQuery.isError && !(group?.subgroups?.length ?? 0));
   const title = group?.title || group?.name || "Categorie";
+  const subgroupCardWidth = Math.max(
+    0,
+    (screenWidth - CATEGORY_HORIZONTAL_PADDING * 2 - SUBGROUP_COLUMN_GAP) / 2,
+  );
 
   if (isLoading) {
     return (
@@ -107,11 +126,12 @@ export default function CategoryDetailScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.page}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.topBar}>
         <Pressable
           onPress={() =>
@@ -167,6 +187,7 @@ export default function CategoryDetailScreen() {
               }
               style={({ pressed }) => [
                 styles.card,
+                { width: subgroupCardWidth },
                 { opacity: pressed ? 0.92 : 1 },
               ]}
             >
@@ -182,7 +203,11 @@ export default function CategoryDetailScreen() {
                   contentFit="cover"
                 />
               </View>
-              <Text style={styles.cardTitle} numberOfLines={2}>
+              <Text
+                style={styles.cardTitle}
+                numberOfLines={2}
+                maxFontSizeMultiplier={1.35}
+              >
                 {subgroup.name}
               </Text>
             </Pressable>
@@ -193,13 +218,19 @@ export default function CategoryDetailScreen() {
           <Text style={styles.stateText}>Aucune sous-categorie disponible.</Text>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+      <ProductListBannerAd />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#FBF8F4" },
   page: { flex: 1, backgroundColor: "#FBF8F4", paddingTop: 22 },
-  content: { padding: 16, paddingBottom: 24 },
+  content: {
+    padding: CATEGORY_HORIZONTAL_PADDING,
+    paddingBottom: 24,
+  },
   centerPage: {
     flex: 1,
     backgroundColor: "#FBF8F4",
@@ -256,12 +287,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 14,
+    gap: SUBGROUP_COLUMN_GAP,
   },
   card: {
-    width: "48%",
-    minHeight: 156,
+    height: 168,
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
     padding: 16,
@@ -281,7 +310,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   cardImage: { width: 62, height: 62, borderRadius: 999 },
-  cardTitle: { fontSize: 18, fontWeight: "900", color: "#3F3B37", lineHeight: 22 },
+  cardTitle: {
+    width: "100%",
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#3F3B37",
+    lineHeight: 22,
+  },
   emptyCard: {
     backgroundColor: "rgba(255,255,255,0.75)",
     borderRadius: 18,
