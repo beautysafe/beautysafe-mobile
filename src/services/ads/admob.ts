@@ -4,10 +4,26 @@ export type GoogleMobileAdsModule =
   typeof import("react-native-google-mobile-ads");
 
 const productionBannerAdUnitId =
-  process.env.EXPO_PUBLIC_ADMOB_BANNER_ID?.trim() || null;
+  (Platform.OS === "ios"
+    ? process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID
+    : process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID
+  )?.trim() || null;
 
 const productionInterstitialAdUnitId =
-  process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID?.trim() || null;
+  (Platform.OS === "ios"
+    ? process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_ID
+    : process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL_ID
+  )?.trim() || null;
+
+const productionBannerEnvironmentVariable =
+  Platform.OS === "ios"
+    ? "EXPO_PUBLIC_ADMOB_IOS_BANNER_ID"
+    : "EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID";
+
+const productionInterstitialEnvironmentVariable =
+  Platform.OS === "ios"
+    ? "EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_ID"
+    : "EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL_ID";
 
 /**
  * IMPORTANT:
@@ -177,7 +193,7 @@ export function getBannerAdUnitId(
     warnedAboutBannerId = true;
 
     warn(
-      "EXPO_PUBLIC_ADMOB_BANNER_ID is missing; banner ads are disabled.",
+      `${productionBannerEnvironmentVariable} is missing; banner ads are disabled.`,
     );
   }
 
@@ -203,7 +219,7 @@ export function getInterstitialAdUnitId(
       true;
 
     warn(
-      "EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID is missing; interstitial ads are disabled.",
+      `${productionInterstitialEnvironmentVariable} is missing; interstitial ads are disabled.`,
     );
   }
 
