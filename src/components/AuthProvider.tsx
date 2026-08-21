@@ -18,20 +18,32 @@ import {
   subscribeToAccessToken,
 } from "../api/clientApi";
 
-type User = any;
+import type { User } from "../entities/User";
+
+import {
+  setAdsEnabled as setGlobalAdsEnabled,
+} from "../services/ads/admob";
 
 type AuthContextValue = {
   token: string | null;
   user: User | null;
   loading: boolean;
 
+  /**
+   * false for VIP users.
+   *
+   * Also false while the app is still determining
+   * the user's VIP status.
+   */
+  adsEnabled: boolean;
+
   signIn: (
     email: string,
-    password: string
+    password: string,
   ) => Promise<void>;
 
   signUp: (
-    dto: authApi.RegisterDto
+    dto: authApi.RegisterDto,
   ) => Promise<void>;
 
   signOut: () => Promise<void>;
@@ -41,7 +53,7 @@ type AuthContextValue = {
 
 const AuthContext =
   createContext<AuthContextValue | null>(
-    null
+    null,
   );
 
 export function useAuth() {
@@ -50,7 +62,7 @@ export function useAuth() {
 
   if (!context) {
     throw new Error(
-      "useAuth must be used inside AuthProvider"
+      "useAuth must be used inside AuthProvider",
     );
   }
 
@@ -62,139 +74,212 @@ export function AuthProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [token, setToken] =
+  const [
+    token,
+    setToken,
+  ] =
     useState<string | null>(
-      null
+      null,
     );
 
-  const [user, setUser] =
+  const [
+    user,
+    setUser,
+  ] =
     useState<User | null>(
-      null
+      null,
     );
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
   /**
-   * apiFetch automatically refreshes the access token
-   * if /users/me returns 401.
+   * Separate from loading.
    *
-   * Therefore refreshMe does NOT need to perform
-   * refresh-token logic itself.
+   * We only enable ads after we actually know
+   * whether the current user is VIP.
    */
+  const [
+    userResolved,
+    setUserResolved,
+  ] =
+    useState(false);
+
+  /**
+   * Anonymous user:
+   * userResolved = true
+   * user = null
+   * adsEnabled = true
+   *
+   * Standard authenticated user:
+   * vip = false
+   * adsEnabled = true
+   *
+   * VIP authenticated user:
+   * vip = true
+   * adsEnabled = false
+   *
+   * Session still being checked:
+   * userResolved = false
+   * adsEnabled = false
+   */
+  const adsEnabled =
+    userResolved &&
+    user?.vip !== true;
+
+  /**
+   * Synchronize React auth state with the
+   * non-React advertising services.
+   */
+  useEffect(() => {
+    setGlobalAdsEnabled(
+      adsEnabled,
+    );
+  }, [
+    adsEnabled,
+  ]);
+
   const refreshMe =
-    useCallback(async () => {
-      try {
-        const me =
-          await authApi.getMe();
+    useCallback(
+      async () => {
+        try {
+          const me =
+            (await authApi.getMe()) as User;
 
-        setUser(me);
+          setUser(me);
+          setUserResolved(true);
 
-        const currentToken =
-          await getStoredAccessToken();
+          const currentToken =
+            await getStoredAccessToken();
 
-        setToken(currentToken);
-
-        if (__DEV__) {
-          console.info(
-            "[Auth] user session valid",
-            {
-              authenticated:
-                true,
-            }
-          );
-        }
-      } catch (error: any) {
-        const status =
-          error?.status;
-
-        if (status === 401) {
-          /**
-           * clientApi already attempted refresh.
-           *
-           * Reaching this point means there is
-           * genuinely no valid session anymore.
-           */
-          await clearSessionTokens();
-
-          setToken(null);
-          setUser(null);
+          setToken(currentToken);
 
           if (__DEV__) {
             console.info(
-              "[Auth] session expired",
+              "[Auth] user session valid",
               {
-                status,
-              }
+                authenticated:
+                  true,
+
+                vip:
+                  me.vip === true,
+
+                adsEnabled:
+                  me.vip !== true,
+              },
             );
           }
+        } catch (
+          error: any
+        ) {
+          const status =
+            error?.status;
 
-          return;
-        }
+          if (status === 401) {
+            await clearSessionTokens();
 
-        /**
-         * Network/server failures should NOT log
-         * the user out.
-         */
-        if (__DEV__) {
-          console.info(
-            "[Auth] unable to validate session; session preserved",
-            {
-              status:
-                error?.status,
-
-              code:
-                error?.code,
-
-              message:
-                error?.message,
-            }
-          );
-        }
-      }
-    }, []);
-
-  useEffect(() => {
-    /**
-     * Keep React state synchronized when clientApi
-     * silently rotates the access token.
-     */
-    const unsubscribe =
-      subscribeToAccessToken(
-        (newToken) => {
-          setToken(newToken);
-
-          if (!newToken) {
+            setToken(null);
             setUser(null);
+
+            /**
+             * Session is definitely gone,
+             * therefore this is now effectively
+             * an anonymous user.
+             */
+            setUserResolved(true);
+
+            if (__DEV__) {
+              console.info(
+                "[Auth] session expired",
+                {
+                  status,
+                },
+              );
+            }
+
+            return;
+          }
+
+          /**
+           * Network/server failures should NOT
+           * log the user out.
+           *
+           * IMPORTANT:
+           * Do not mark userResolved=true here
+           * when we don't know whether the
+           * authenticated user is VIP.
+           *
+           * Ads therefore remain disabled until
+           * we successfully resolve /users/me.
+           */
+          if (__DEV__) {
+            console.info(
+              "[Auth] unable to validate session; session preserved",
+              {
+                status:
+                  error?.status,
+
+                code:
+                  error?.code,
+
+                message:
+                  error?.message,
+              },
+            );
           }
         }
+      },
+      [],
+    );
+
+  useEffect(() => {
+    const unsubscribe =
+      subscribeToAccessToken(
+        (
+          newToken,
+        ) => {
+          setToken(
+            newToken,
+          );
+
+          if (!newToken) {
+            setUser(
+              null,
+            );
+          }
+        },
       );
 
-    let mounted = true;
+    let mounted =
+      true;
 
     const bootstrap =
       async () => {
         try {
-          /**
-           * Preserve old installations that stored
-           * their JWT in AsyncStorage.
-           */
+          setUserResolved(
+            false,
+          );
+
           await migrateLegacyAccessToken();
 
           const [
             storedAccessToken,
             storedRefreshToken,
-          ] = await Promise.all([
-            getStoredAccessToken(),
-            getStoredRefreshToken(),
-          ]);
+          ] =
+            await Promise.all([
+              getStoredAccessToken(),
+              getStoredRefreshToken(),
+            ]);
 
           if (!mounted) {
             return;
           }
 
           setToken(
-            storedAccessToken
+            storedAccessToken,
           );
 
           if (__DEV__) {
@@ -203,29 +288,39 @@ export function AuthProvider({
               {
                 accessToken:
                   Boolean(
-                    storedAccessToken
+                    storedAccessToken,
                   ),
 
                 refreshToken:
                   Boolean(
-                    storedRefreshToken
+                    storedRefreshToken,
                   ),
-              }
+              },
             );
           }
 
-          /**
-           * Even if the access token expired, getMe()
-           * will receive 401 and clientApi will use
-           * the refresh token automatically.
-           */
           if (
             storedAccessToken ||
             storedRefreshToken
           ) {
             await refreshMe();
+          } else {
+            /**
+             * No authenticated session.
+             *
+             * Anonymous users are allowed ads.
+             */
+            setUser(
+              null,
+            );
+
+            setUserResolved(
+              true,
+            );
           }
-        } catch (error: any) {
+        } catch (
+          error: any
+        ) {
           if (__DEV__) {
             console.error(
               "[Auth] bootstrap failed",
@@ -238,12 +333,14 @@ export function AuthProvider({
 
                 message:
                   error?.message,
-              }
+              },
             );
           }
         } finally {
           if (mounted) {
-            setLoading(false);
+            setLoading(
+              false,
+            );
           }
         }
       };
@@ -252,16 +349,27 @@ export function AuthProvider({
 
     return () => {
       mounted = false;
+
       unsubscribe();
     };
-  }, [refreshMe]);
+  }, [
+    refreshMe,
+  ]);
 
   const signIn =
     useCallback(
       async (
         email: string,
-        password: string
+        password: string,
       ) => {
+        /**
+         * Disable ads while we determine whether
+         * this account is VIP.
+         */
+        setUserResolved(
+          false,
+        );
+
         const response =
           await authApi.login({
             email,
@@ -283,13 +391,14 @@ export function AuthProvider({
         });
 
         setToken(
-          response.accessToken
+          response.accessToken,
         );
 
         const me =
-          await authApi.getMe();
+          (await authApi.getMe()) as User;
 
         setUser(me);
+        setUserResolved(true);
 
         if (__DEV__) {
           console.info(
@@ -300,35 +409,32 @@ export function AuthProvider({
 
               refreshSession:
                 true,
-            }
+
+              vip:
+                me.vip ===
+                true,
+
+              adsEnabled:
+                me.vip !==
+                true,
+            },
           );
         }
       },
-      []
+      [],
     );
 
   const signUp =
     useCallback(
       async (
         dto:
-          authApi.RegisterDto
+          authApi.RegisterDto,
       ) => {
-        /**
-         * Current backend register endpoint does
-         * not document tokens in its response.
-         *
-         * Registration screen already performs:
-         *
-         * register()
-         * signIn()
-         *
-         * so leave token creation to signIn().
-         */
         await authApi.register(
-          dto
+          dto,
         );
       },
-      []
+      [],
     );
 
   const signOut =
@@ -337,36 +443,31 @@ export function AuthProvider({
         const refreshToken =
           await getStoredRefreshToken();
 
-        /**
-         * Remove local session immediately.
-         *
-         * User should be logged out locally even
-         * when the device has no internet.
-         */
         await clearSessionTokens();
 
         setToken(null);
         setUser(null);
 
+        /**
+         * After logout the person is anonymous,
+         * so normal ad policy applies again.
+         */
+        setUserResolved(true);
+
         if (refreshToken) {
           try {
             await authApi.logout(
-              refreshToken
+              refreshToken,
             );
 
             if (__DEV__) {
               console.info(
-                "[Auth] refresh session revoked"
+                "[Auth] refresh session revoked",
               );
             }
-          } catch (error: any) {
-            /**
-             * Local logout already succeeded.
-             *
-             * Do not restore local credentials simply
-             * because server logout failed due to
-             * temporary connectivity.
-             */
+          } catch (
+            error: any
+          ) {
             if (__DEV__) {
               console.info(
                 "[Auth] remote logout failed; local session already cleared",
@@ -376,13 +477,13 @@ export function AuthProvider({
 
                   message:
                     error?.message,
-                }
+                },
               );
             }
           }
         }
       },
-      []
+      [],
     );
 
   const value =
@@ -391,6 +492,7 @@ export function AuthProvider({
         token,
         user,
         loading,
+        adsEnabled,
 
         signIn,
         signUp,
@@ -401,16 +503,19 @@ export function AuthProvider({
         token,
         user,
         loading,
+        adsEnabled,
         signIn,
         signUp,
         signOut,
         refreshMe,
-      ]
+      ],
     );
 
   return (
     <AuthContext.Provider
-      value={value}
+      value={
+        value
+      }
     >
       {children}
     </AuthContext.Provider>
