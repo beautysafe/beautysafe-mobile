@@ -35,6 +35,7 @@ export type Product = {
   name: string;
 
   validScore: number;
+  valide_bs_score?: number | null;
 
   averageRating: number;
   ratingsCount: number;

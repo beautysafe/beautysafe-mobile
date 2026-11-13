@@ -119,25 +119,24 @@ function getBeautyScoreColor(score100: number) {
 function BeautyScoreBar({
   score,
 }: {
-  score: number;
+  score?: number | null;
 }) {
-  /*
-   * Your current API data is normally /20.
-   * Convert it to /100 for this visual.
-   *
-   * This also protects the UI if the backend
-   * later starts returning scores directly /100.
-   */
-  const score100 =
-    score <= 20
-      ? score * 5
-      : score;
+  const hasCalculatedScore =
+    typeof score === "number" &&
+    Number.isFinite(score);
 
-  const normalizedScore =
-    Math.max(
-      0,
-      Math.min(100, score100)
-    );
+  const normalizedScore = hasCalculatedScore
+    ? Math.max(0, Math.min(100, score))
+    : 0;
+
+  /*
+   * Keep the real score unchanged in the label. The minimum is visual only,
+   * so low calculated scores remain noticeable without treating missing data
+   * as a calculated zero.
+   */
+  const visualScore = hasCalculatedScore
+    ? Math.max(normalizedScore, 10)
+    : 0;
 
   const color =
     getBeautyScoreColor(
@@ -176,7 +175,7 @@ function BeautyScoreBar({
               0,
               Math.min(
                 20,
-                normalizedScore -
+                visualScore -
                   segmentStart
               )
             );
@@ -216,12 +215,14 @@ function BeautyScoreBar({
         </Text>
 
         <Text
-          style={[
-            styles.beautyProgressLabel,
-            { color: "#35A853" },
-          ]}
+          style={styles.beautyProgressValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
         >
-          Excellent
+          {hasCalculatedScore
+            ? `${Math.round(normalizedScore)}%`
+            : "Non calculé"}
         </Text>
       </View>
     </View>
@@ -1328,11 +1329,8 @@ export default function ProductDetailsScreen() {
         ).image
       : undefined);
 
-  const score20 =
-    Number(
-      product.validScore ??
-        0
-    );
+  const beautySafeScore =
+    product.valide_bs_score;
 const ratingsCount =
   Number(
     product.ratingsCount ?? 0
@@ -1525,7 +1523,7 @@ const repurchaseAverage =
           >
             <View style={styles.beautyScoreBox}>
               <BeautyScoreBar
-                score={score20}
+                score={beautySafeScore}
               />
             </View>
 
@@ -2658,8 +2656,11 @@ beautyProgressTitle: {
 },
 
 beautyProgressValue: {
-  fontSize: 13,
+  color: "#2F2C29",
+  fontSize: 16,
   fontWeight: "900",
+  textAlign: "right",
+  fontVariant: ["tabular-nums"],
 },
 
 beautySegmentsRow: {
